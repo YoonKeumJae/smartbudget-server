@@ -59,3 +59,25 @@ python3 scripts/harness.py verify
 ```
 
 수동 verify는 Ruff·docstring·pytest 검사입니다. 별도 Luna 검토와 지문 확인은 [종료 훅 절차](harness.md)에 따릅니다. 테스트는 임시 DB·테스트용 키를 사용하며 실제 사용자 데이터를 요구하지 않습니다.
+
+## 소스 구조와 기능 추가
+
+```text
+accountbook/
+├── __main__.py       # 서버 실행
+├── main.py           # 앱 조립·라우터 등록·DB 수명주기
+├── config.py         # 환경 설정
+├── database.py       # 공통 Base·DB 연결·트랜잭션
+├── http.py           # 공통 응답·오류 처리·OpenAPI
+└── auth/
+    ├── __init__.py
+    ├── router.py     # 인증 API·토큰 전달 규칙·인증 오류 처리
+    ├── schemas.py    # 인증 요청·응답 모델
+    ├── service.py    # 가입·로그인·계정 변경
+    ├── security.py   # 비밀번호 검증·해시·JWT
+    └── models.py     # User·LoginAttempt 테이블
+```
+
+라우트는 Request의 app.state에서 해당 앱의 설정·엔진을 읽습니다. 모듈 전역에 앱별 DB나 설정을 저장하지 않습니다. main.py는 공통 HTTP 처리, 인증 라우터, 가장 바깥의 CORS 순으로 구성합니다. 인증 전송 검사에서 즉시 반환하는 오류에도 CORS가 적용됩니다.
+
+새 기능은 실제로 추가할 때 auth/와 같은 수준의 디렉토리로 묶고 main.py에서 라우터를 등록합니다. 기능별 models.py는 공통 database.Base를 상속합니다. 앱 시작 시 create_all을 실행하기 전에 해당 모델 모듈을 불러와 메타데이터에 등록해야 합니다. 현재는 인증 라우터 → service → models의 import로 등록합니다. build_engine은 연결만 구성하고 테이블 초기화는 앱 수명주기에서 수행합니다. 별도의 repository·추상 인터페이스 계층은 없습니다.

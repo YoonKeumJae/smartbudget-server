@@ -8,13 +8,13 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from accountbook import security
+from accountbook.auth import security
+from accountbook.auth.models import LoginAttempt, User
 from accountbook.config import Settings
-from accountbook.database import LoginAttempt, User, read_session, write_session
+from accountbook.database import read_session, write_session
 
 INVALID_LOGIN = "The username or password is incorrect."
 INVALID_TOKEN = "Authentication is required or the token is invalid."
-INVALID_REQUEST = "The request parameters or format are invalid."
 
 
 class AuthError(Exception):

@@ -5,8 +5,7 @@ import time
 import jwt
 import pytest
 
-from accountbook.config import Settings
-from accountbook.security import (
+from accountbook.auth.security import (
     decode_token,
     hash_password,
     issue_token,
@@ -15,6 +14,7 @@ from accountbook.security import (
     validate_password,
     verify_password,
 )
+from accountbook.config import Settings
 
 
 def test_input_policy():

@@ -160,7 +160,7 @@ def test_user_isolation_and_input_contract(client):
 
 def test_login_block_does_not_extend(client, monkeypatch):
     """대소문자 공유 실패 집계와 정확한 차단 종료 시각을 검사합니다."""
-    import accountbook.auth as auth
+    from accountbook.auth import service as auth
 
     clock = [2000000000]
     monkeypatch.setattr(auth, "now_seconds", lambda: clock[0])
@@ -224,7 +224,7 @@ def test_concurrent_failures(client):
 
 def test_failure_window_and_unknown_user(client, monkeypatch):
     """5분 경계의 실패 제거와 미가입 아이디에도 같은 차단을 적용합니다."""
-    import accountbook.auth as auth
+    from accountbook.auth import service as auth
 
     clock = [2000000000]
     monkeypatch.setattr(auth, "now_seconds", lambda: clock[0])
@@ -304,7 +304,7 @@ def test_error_envelope_and_cors(client, caplog):
 
 def test_invalid_token_does_not_hash_new_password(client, monkeypatch):
     """인증 실패한 수정 요청은 고비용 비밀번호 해시를 실행하지 않습니다."""
-    from accountbook import security
+    from accountbook.auth import security
 
     calls = []
     monkeypatch.setattr(security, "hash_password", lambda value: calls.append(value))
@@ -328,3 +328,42 @@ def test_web_errors_and_openapi_contract(client):
     assert "400" in route["responses"] and "409" in route["responses"]
     assert "422" not in route["responses"]
     assert route["responses"]["200"]["content"]["application/json"]["schema"]
+
+
+def test_router_uses_each_apps_database_and_settings(tmp_path):
+    """공유 인증 라우터가 서로 다른 앱의 DB·JWT 서명키를 혼용하지 않습니다."""
+    first_settings = Settings(
+        _env_file=None, jwt_secret="a" * 43, database_path=tmp_path / "first.sqlite3"
+    )
+    second_settings = Settings(
+        _env_file=None, jwt_secret="b" * 43, database_path=tmp_path / "second.sqlite3"
+    )
+    with TestClient(create_app(first_settings)) as first:
+        with TestClient(create_app(second_settings)) as second:
+            assert signup(first, display_name="첫 사용자").status_code == 200
+            assert signup(second, display_name="둘 사용자").status_code == 200
+            first_token = signin(first).json()["data"]["token"]
+            second_token = signin(second).json()["data"]["token"]
+            for client, token, name in [
+                (first, first_token, "첫 사용자"),
+                (second, second_token, "둘 사용자"),
+            ]:
+                response = client.get(
+                    PREFIX + "/account", headers={"Authorization": "Bearer " + token}
+                )
+                assert response.status_code == 200
+                assert response.json()["data"]["display_name"] == name
+            assert (
+                first.get(
+                    PREFIX + "/account",
+                    headers={"Authorization": "Bearer " + second_token},
+                ).status_code
+                == 401
+            )
+            assert (
+                second.get(
+                    PREFIX + "/account",
+                    headers={"Authorization": "Bearer " + first_token},
+                ).status_code
+                == 401
+            )
