@@ -1,0 +1,28 @@
+{
+  "description": "Verify every Codex turn that changes project files.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/harness.py\" start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/harness.py\" stop",
+            "timeout": 300,
+            "statusMessage": "Verifying project changes"
+          }
+        ]
+      }
+    ]
+  }
+}
