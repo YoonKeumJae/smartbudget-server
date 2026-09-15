@@ -218,3 +218,12 @@ __marimo__/
 .streamlit/secrets.toml
 
 .harness-state/
+
+# AccountBook settings and private database files
+.env.*
+!.env.example
+data/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
