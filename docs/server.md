@@ -1,6 +1,6 @@
 # 서버 실행 및 설정
 
-Python 3.14를 사용합니다. 인증 계약은 [authentication.md](authentication.md), 개발 검증은 [harness.md](harness.md)를 참고합니다.
+Python 3.14를 사용합니다. 구현해야 할 전체 API 계약은 [openapi.json](openapi.json)을 기준으로 합니다. 인증 세부 설명은 [authentication.md](authentication.md), 개발 검증은 [harness.md](harness.md)를 참고합니다.
 
 ## 로컬 실행
 
@@ -20,7 +20,7 @@ cp .env.example .env
 .venv/bin/python -m accountbook
 ```
 
-기본 주소는 `http://127.0.0.1:8000`입니다. `/docs`는 API 탐색 화면, `/openapi.json`은 기계가 읽는 명세입니다. 설정 오류는 시작을 중단하며 임시 서명키로 실행하지 않습니다.
+기본 주소는 `http://127.0.0.1:8000`입니다. 실행 중 서버의 `/docs`와 `/openapi.json`은 현재 구현 상태를 보여주며, `docs/openapi.json`은 구현해야 할 목표 계약입니다. 설정 오류는 시작을 중단하며 임시 서명키로 실행하지 않습니다.
 
 ## 환경 설정
 
