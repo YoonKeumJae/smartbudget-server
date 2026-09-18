@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException
 
@@ -12,25 +12,56 @@ SUCCESS_MESSAGE = "The request has been accepted and processed."
 INVALID_REQUEST = "The request parameters or format are invalid."
 
 
+def response_code_schema(value: str) -> WithJsonSchema:
+    """고정 응답 코드와 공통 설명을 함께 공개하는 스키마를 반환합니다."""
+    return WithJsonSchema(
+        {
+            "type": "string",
+            "const": value,
+            "pattern": r"^[A-Z][A-Z0-9_]*$",
+            "description": "클라이언트가 분기 처리할 안정적인 응답 코드입니다.",
+        }
+    )
+
+
 class Envelope[T](BaseModel):
     """API 전체의 상태·코드·메시지·데이터 봉투를 문서화합니다."""
 
+    model_config = ConfigDict(extra="forbid")
     status: int
-    code: str
+    code: str = Field(
+        pattern=r"^[A-Z][A-Z0-9_]*$",
+        description="클라이언트가 분기 처리할 안정적인 응답 코드입니다.",
+    )
     message: str
     data: T
 
 
-ERROR_RESPONSES = {
-    code: {"model": Envelope[None], "description": description}
-    for code, description in [
-        (400, "Invalid request"),
-        (401, "Authentication failed"),
-        (409, "Username already exists"),
-        (429, "Sign-in retry limit"),
-        (503, "Service temporarily unavailable"),
-    ]
-}
+def documented_response(
+    model: object,
+    description: str,
+    *,
+    authentication: bool = False,
+    retry_after: bool = False,
+) -> dict:
+    """응답 모델과 실제 보안 헤더를 FastAPI OpenAPI 정의로 묶습니다."""
+    headers = {
+        "Cache-Control": {
+            "description": "캐시 저장 금지",
+            "schema": {"type": "string", "const": "no-store"},
+        }
+    }
+    if authentication:
+        headers["WWW-Authenticate"] = {
+            "description": "Bearer 인증 안내",
+            "schema": {"type": "string", "const": "Bearer"},
+        }
+    if retry_after:
+        headers["Retry-After"] = {
+            "description": "로그인 차단의 남은 시간(초)",
+            "schema": {"type": "integer", "minimum": 0},
+        }
+    return {"model": model, "description": description, "headers": headers}
 
 
 def respond(

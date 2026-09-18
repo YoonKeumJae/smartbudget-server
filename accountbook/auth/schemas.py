@@ -12,9 +12,30 @@ from pydantic import (
     model_validator,
 )
 
-from accountbook.auth import security
+from accountbook.auth import security, service
+from accountbook.http import (
+    INVALID_REQUEST,
+    SUCCESS_MESSAGE,
+    Envelope,
+    response_code_schema,
+)
 
-TOKEN = Annotated[str, Field(strict=True, min_length=1, max_length=4096)]
+TOKEN = Annotated[
+    str,
+    Field(strict=True, min_length=1, max_length=4096),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": (
+                "요청 JSON에 첨부할 유효한 JWT입니다. 토큰 수명·검증 정책은 "
+                "API 설명을 참고합니다."
+            ),
+            "writeOnly": True,
+        }
+    ),
+]
 NAME = Annotated[str, Field(strict=True, max_length=256)]
 PASSWORD = Annotated[SecretStr, Field(strict=True, max_length=128)]
 CURRENT_PASSWORD = Annotated[
@@ -172,7 +193,8 @@ class AccountUpdate(BaseModel):
 class TokenData(BaseModel):
     """로그인·갱신의 JWT와 실제 만료 정보를 문서화합니다."""
 
-    token: str
+    model_config = ConfigDict(extra="forbid")
+    token: Annotated[str, Field(description="새로 발급한 JWT입니다.")]
     expires_at: Annotated[
         str,
         Field(
@@ -189,10 +211,92 @@ class TokenData(BaseModel):
             },
         ),
     ]
-    token_type: Literal["Bearer"]
+    token_type: Annotated[
+        Literal["Bearer"],
+        Field(description="Authorization 헤더에 사용할 인증 유형입니다."),
+    ]
 
 
 class AccountData(BaseModel):
     """본인 계정 조회·수정 응답의 표시 이름을 문서화합니다."""
 
-    display_name: str
+    model_config = ConfigDict(extra="forbid")
+    display_name: Annotated[str, Field(description="저장된 표시 이름입니다.")]
+
+
+class SuccessEnvelope[T](Envelope[T]):
+    """인증 API 성공 응답의 고정 상태·코드·메시지를 공개합니다."""
+
+    status: Literal[200]
+    code: Annotated[Literal["SUCCESS"], response_code_schema("SUCCESS")]
+    message: Literal[SUCCESS_MESSAGE]
+
+
+class InvalidRequestEnvelope(Envelope[None]):
+    """잘못된 인증 API 요청의 고정 응답 계약을 공개합니다."""
+
+    status: Literal[400]
+    code: Annotated[Literal["INVALID_REQUEST"], response_code_schema("INVALID_REQUEST")]
+    message: Literal[INVALID_REQUEST]
+
+
+class InvalidCredentialsEnvelope(Envelope[None]):
+    """아이디 또는 비밀번호 불일치 응답 계약을 공개합니다."""
+
+    status: Literal[401]
+    code: Annotated[
+        Literal["INVALID_CREDENTIALS"], response_code_schema("INVALID_CREDENTIALS")
+    ]
+    message: Literal[service.INVALID_LOGIN]
+
+
+class AuthenticationRequiredEnvelope(Envelope[None]):
+    """Bearer JWT 인증 실패 응답 계약을 공개합니다."""
+
+    status: Literal[401]
+    code: Annotated[
+        Literal["AUTHENTICATION_REQUIRED"],
+        response_code_schema("AUTHENTICATION_REQUIRED"),
+    ]
+    message: Literal[service.INVALID_TOKEN]
+
+
+class CurrentPasswordIncorrectEnvelope(Envelope[None]):
+    """현재 비밀번호 불일치 응답 계약을 공개합니다."""
+
+    status: Literal[401]
+    code: Annotated[
+        Literal["CURRENT_PASSWORD_INCORRECT"],
+        response_code_schema("CURRENT_PASSWORD_INCORRECT"),
+    ]
+    message: Literal[service.CURRENT_PASSWORD_MESSAGE]
+
+
+class UsernameConflictEnvelope(Envelope[None]):
+    """대소문자 정규화 후 아이디 중복 응답 계약을 공개합니다."""
+
+    status: Literal[409]
+    code: Annotated[
+        Literal["USERNAME_CONFLICT"], response_code_schema("USERNAME_CONFLICT")
+    ]
+    message: Literal["The username is already in use."]
+
+
+class SignInRateLimitedEnvelope(Envelope[None]):
+    """로그인 재시도 제한과 Retry-After 응답 계약을 공개합니다."""
+
+    status: Literal[429]
+    code: Annotated[
+        Literal["SIGN_IN_RATE_LIMITED"], response_code_schema("SIGN_IN_RATE_LIMITED")
+    ]
+    message: Literal["Too many sign-in attempts. Please try again later."]
+
+
+class ServiceUnavailableEnvelope(Envelope[None]):
+    """SQLite 잠금·일시 사용 불가 응답 계약을 공개합니다."""
+
+    status: Literal[503]
+    code: Annotated[
+        Literal["SERVICE_UNAVAILABLE"], response_code_schema("SERVICE_UNAVAILABLE")
+    ]
+    message: Literal["The service is temporarily unavailable."]

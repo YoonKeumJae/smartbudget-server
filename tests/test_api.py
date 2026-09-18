@@ -472,13 +472,14 @@ def test_web_errors_and_openapi_contract(client):
         responses = schema["paths"][path][method]["responses"]
         assert set(responses) == statuses
         for documented in responses.values():
-            envelope = documented["content"]["application/json"]["schema"]
-            if "$ref" in envelope:
-                envelope = schema["components"]["schemas"][
-                    envelope["$ref"].rsplit("/", 1)[-1]
-                ]
-            assert "code" in envelope["properties"]
-            assert "code" in envelope["required"]
+            response_schema = documented["content"]["application/json"]["schema"]
+            for envelope in response_schema.get("anyOf", [response_schema]):
+                if "$ref" in envelope:
+                    envelope = schema["components"]["schemas"][
+                        envelope["$ref"].rsplit("/", 1)[-1]
+                    ]
+                assert "code" in envelope["properties"]
+                assert "code" in envelope["required"]
 
     account_methods = schema["paths"][PREFIX + "/account"]
     assert set(account_methods) == {"get", "patch", "delete"}
@@ -505,6 +506,77 @@ def test_web_errors_and_openapi_contract(client):
     token_data = schema["components"]["schemas"]["TokenData"]
     assert set(token_data["properties"]) == {"token", "expires_at", "token_type"}
     assert set(token_data["required"]) == {"token", "expires_at", "token_type"}
+
+
+def test_live_openapi_exposes_exact_auth_response_contract(client):
+    """라이브 문서가 인증 응답의 고정값과 필수 헤더를 정확히 공개합니다."""
+    schema = client.get("/openapi.json").json()
+    target = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs/openapi.json").read_text()
+    )
+
+    def resolve(value):
+        """컴포넌트 참조를 실제 스키마로 바꿔 비교를 단순하게 만듭니다."""
+        if "$ref" not in value:
+            return value
+        return schema["components"]["schemas"][value["$ref"].rsplit("/", 1)[-1]]
+
+    for path, target_methods in target["paths"].items():
+        if not path.startswith(PREFIX + "/"):
+            continue
+        for method, target_operation in target_methods.items():
+            operation = schema["paths"][path][method]
+            for status, target_response in target_operation["responses"].items():
+                if (
+                    path == PREFIX + "/account"
+                    and method == "patch"
+                    and status == "401"
+                ):
+                    continue
+                response = operation["responses"][status]
+                example = target_response["content"]["application/json"]["example"]
+                envelope = resolve(response["content"]["application/json"]["schema"])
+                assert envelope["additionalProperties"] is False
+                assert envelope["properties"]["status"]["const"] == example["status"]
+                assert envelope["properties"]["code"]["const"] == example["code"]
+                assert envelope["properties"]["message"]["const"] == example["message"]
+                expected_headers = target_response["headers"]
+                assert set(response["headers"]) == set(expected_headers)
+                for name, header in response["headers"].items():
+                    assert header["schema"] == expected_headers[name]["schema"]
+                assert ("WWW-Authenticate" in response["headers"]) == (status == "401")
+                assert ("Retry-After" in response["headers"]) == (status == "429")
+
+    for path in (PREFIX + "/sign-up", PREFIX + "/sign-in", PREFIX + "/refresh"):
+        assert schema["paths"][path]["post"]["security"] == []
+
+    refresh_request = schema["components"]["schemas"]["RefreshRequest"]
+    assert refresh_request["properties"]["token"]["writeOnly"] is True
+    assert schema["components"]["schemas"]["TokenData"]["additionalProperties"] is False
+    assert (
+        schema["components"]["schemas"]["AccountData"]["additionalProperties"] is False
+    )
+
+    patch_401 = schema["paths"][PREFIX + "/account"]["patch"]["responses"]["401"]
+    variants = [
+        resolve(value)
+        for value in patch_401["content"]["application/json"]["schema"]["anyOf"]
+    ]
+    assert {
+        (
+            value["properties"]["code"]["const"],
+            value["properties"]["message"]["const"],
+        )
+        for value in variants
+    } == {
+        (
+            "AUTHENTICATION_REQUIRED",
+            "Authentication is required or the token is invalid.",
+        ),
+        ("CURRENT_PASSWORD_INCORRECT", "The current password is incorrect."),
+    }
+    assert "Cache-Control" in patch_401["headers"]
+    assert "WWW-Authenticate" in patch_401["headers"]
 
 
 def test_openapi_token_expiration_contract(client):

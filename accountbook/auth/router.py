@@ -9,12 +9,20 @@ from accountbook.auth import security, service
 from accountbook.auth.schemas import (
     AccountData,
     AccountUpdate,
+    AuthenticationRequiredEnvelope,
     Credentials,
+    CurrentPasswordIncorrectEnvelope,
+    InvalidCredentialsEnvelope,
+    InvalidRequestEnvelope,
     RefreshRequest,
     Registration,
+    ServiceUnavailableEnvelope,
+    SignInRateLimitedEnvelope,
+    SuccessEnvelope,
     TokenData,
+    UsernameConflictEnvelope,
 )
-from accountbook.http import ERROR_RESPONSES, INVALID_REQUEST, Envelope, respond
+from accountbook.http import INVALID_REQUEST, documented_response, respond
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 bearer = HTTPBearer(
@@ -22,6 +30,18 @@ bearer = HTTPBearer(
     scheme_name="BearerAuth",
     bearerFormat="JWT",
     description="Authorization: Bearer <JWT> 헤더로 인증합니다.",
+)
+
+INVALID_REQUEST_RESPONSE = documented_response(
+    InvalidRequestEnvelope, "The request parameters or format are invalid."
+)
+AUTHENTICATION_REQUIRED_RESPONSE = documented_response(
+    AuthenticationRequiredEnvelope,
+    "Authentication is required or the token is invalid.",
+    authentication=True,
+)
+SERVICE_UNAVAILABLE_RESPONSE = documented_response(
+    ServiceUnavailableEnvelope, "The service is temporarily unavailable."
 )
 
 
@@ -36,8 +56,16 @@ def bearer_token(credentials: HTTPAuthorizationCredentials | None) -> str:
 
 @router.post(
     "/sign-up",
-    response_model=Envelope[None],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 409, 503]},
+    response_model=SuccessEnvelope[None],
+    responses={
+        200: documented_response(SuccessEnvelope[None], "정상 처리됨."),
+        400: INVALID_REQUEST_RESPONSE,
+        409: documented_response(
+            UsernameConflictEnvelope, "The username is already in use."
+        ),
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
+    openapi_extra={"security": []},
 )
 def sign_up(payload: Registration, request: Request):
     """필수 이름·아이디·비밀번호로 계정을 생성합니다."""
@@ -52,8 +80,23 @@ def sign_up(payload: Registration, request: Request):
 
 @router.post(
     "/sign-in",
-    response_model=Envelope[TokenData],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 429, 503]},
+    response_model=SuccessEnvelope[TokenData],
+    responses={
+        200: documented_response(SuccessEnvelope[TokenData], "정상 처리됨."),
+        400: INVALID_REQUEST_RESPONSE,
+        401: documented_response(
+            InvalidCredentialsEnvelope,
+            "The username or password is incorrect.",
+            authentication=True,
+        ),
+        429: documented_response(
+            SignInRateLimitedEnvelope,
+            "Too many sign-in attempts. Please try again later.",
+            retry_after=True,
+        ),
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
+    openapi_extra={"security": []},
 )
 def sign_in(payload: Credentials, request: Request):
     """로그인 제한을 적용하고 JWT와 실제 만료 정보를 반환합니다."""
@@ -68,8 +111,14 @@ def sign_in(payload: Credentials, request: Request):
 
 @router.post(
     "/refresh",
-    response_model=Envelope[TokenData],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
+    response_model=SuccessEnvelope[TokenData],
+    responses={
+        200: documented_response(SuccessEnvelope[TokenData], "정상 처리됨."),
+        400: INVALID_REQUEST_RESPONSE,
+        401: AUTHENTICATION_REQUIRED_RESPONSE,
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
+    openapi_extra={"security": []},
 )
 def refresh(payload: RefreshRequest, request: Request):
     """유효한 JWT로 새 토큰을 발급하고 실제 만료 정보를 반환합니다."""
@@ -81,8 +130,13 @@ def refresh(payload: RefreshRequest, request: Request):
 
 @router.get(
     "/account",
-    response_model=Envelope[AccountData],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
+    response_model=SuccessEnvelope[AccountData],
+    responses={
+        200: documented_response(SuccessEnvelope[AccountData], "정상 처리됨."),
+        400: INVALID_REQUEST_RESPONSE,
+        401: AUTHENTICATION_REQUIRED_RESPONSE,
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
 )
 def get_account(
     request: Request,
@@ -103,8 +157,19 @@ def get_account(
 
 @router.patch(
     "/account",
-    response_model=Envelope[AccountData],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
+    response_model=SuccessEnvelope[AccountData],
+    responses={
+        200: documented_response(
+            SuccessEnvelope[AccountData], "본인 정보 수정이 완료되었습니다."
+        ),
+        400: INVALID_REQUEST_RESPONSE,
+        401: documented_response(
+            AuthenticationRequiredEnvelope | CurrentPasswordIncorrectEnvelope,
+            "토큰이 유효하지 않거나 현재 비밀번호가 일치하지 않습니다.",
+            authentication=True,
+        ),
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
 )
 def update_account(
     payload: AccountUpdate,
@@ -129,8 +194,13 @@ def update_account(
 
 @router.delete(
     "/account",
-    response_model=Envelope[None],
-    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
+    response_model=SuccessEnvelope[None],
+    responses={
+        200: documented_response(SuccessEnvelope[None], "계정 삭제가 완료되었습니다."),
+        400: INVALID_REQUEST_RESPONSE,
+        401: AUTHENTICATION_REQUIRED_RESPONSE,
+        503: SERVICE_UNAVAILABLE_RESPONSE,
+    },
 )
 def delete_account(
     request: Request,
