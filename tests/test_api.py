@@ -446,13 +446,63 @@ def test_web_errors_and_openapi_contract(client):
         headers={"Origin": "https://web.example.test"},
     )
     assert response.status_code == 401
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.headers["www-authenticate"] == "Bearer"
     assert response.headers["access-control-allow-origin"] == "https://web.example.test"
     assert "Retry-After" in response.headers["access-control-expose-headers"]
+    wrong_scheme = client.get(
+        PREFIX + "/account", headers={"Authorization": "Basic invalid"}
+    )
+    assert wrong_scheme.status_code == 401
+    assert wrong_scheme.json()["code"] == "AUTHENTICATION_REQUIRED"
+    assert wrong_scheme.headers["www-authenticate"] == "Bearer"
+
     schema = client.get("/openapi.json").json()
-    route = schema["paths"][PREFIX + "/sign-up"]["post"]
-    assert "400" in route["responses"] and "409" in route["responses"]
-    assert "422" not in route["responses"]
-    assert route["responses"]["200"]["content"]["application/json"]["schema"]
+    auth_operations = {
+        (PREFIX + "/sign-up", "post"): {"200", "400", "409", "503"},
+        (PREFIX + "/sign-in", "post"): {"200", "400", "401", "429", "503"},
+        (PREFIX + "/refresh", "post"): {"200", "400", "401", "503"},
+        (PREFIX + "/account", "get"): {"200", "400", "401", "503"},
+        (PREFIX + "/account", "patch"): {"200", "400", "401", "503"},
+        (PREFIX + "/account", "delete"): {"200", "400", "401", "503"},
+    }
+    for (path, method), statuses in auth_operations.items():
+        responses = schema["paths"][path][method]["responses"]
+        assert set(responses) == statuses
+        for documented in responses.values():
+            envelope = documented["content"]["application/json"]["schema"]
+            if "$ref" in envelope:
+                envelope = schema["components"]["schemas"][
+                    envelope["$ref"].rsplit("/", 1)[-1]
+                ]
+            assert "code" in envelope["properties"]
+            assert "code" in envelope["required"]
+
+    account_methods = schema["paths"][PREFIX + "/account"]
+    assert set(account_methods) == {"get", "patch", "delete"}
+    assert schema["components"]["securitySchemes"]["BearerAuth"] == {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <JWT> 헤더로 인증합니다.",
+    }
+    for method in account_methods.values():
+        assert method["security"] == [{"BearerAuth": []}]
+        assert "422" not in method["responses"]
+
+    for path in (PREFIX + "/sign-in", PREFIX + "/refresh"):
+        response_schema = schema["paths"][path]["post"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]
+        envelope = schema["components"]["schemas"][
+            response_schema["$ref"].rsplit("/", 1)[-1]
+        ]
+        assert envelope["properties"]["data"] == {
+            "$ref": "#/components/schemas/TokenData"
+        }
+    token_data = schema["components"]["schemas"]["TokenData"]
+    assert set(token_data["properties"]) == {"token", "expires_at", "token_type"}
+    assert set(token_data["required"]) == {"token", "expires_at", "token_type"}
 
 
 def test_openapi_token_expiration_contract(client):

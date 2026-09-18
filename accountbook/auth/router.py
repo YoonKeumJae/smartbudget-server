@@ -17,7 +17,12 @@ from accountbook.auth.schemas import (
 from accountbook.http import ERROR_RESPONSES, INVALID_REQUEST, Envelope, respond
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-bearer = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
+bearer = HTTPBearer(
+    auto_error=False,
+    scheme_name="BearerAuth",
+    bearerFormat="JWT",
+    description="Authorization: Bearer <JWT> 헤더로 인증합니다.",
+)
 
 
 def bearer_token(credentials: HTTPAuthorizationCredentials | None) -> str:
