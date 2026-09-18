@@ -553,6 +553,22 @@ def test_official_patch_401_allows_only_paired_errors():
     } == pairs
 
 
+def test_official_delete_account_description_matches_current_scope():
+    """공식 DELETE 설명이 현재 삭제 범위와 미래 모델 경계를 구분합니다."""
+    target = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs/openapi.json").read_text()
+    )
+    description = target["paths"][PREFIX + "/account"]["delete"]["description"]
+    assert "User" in description
+    assert "LoginAttempt" in description
+    assert "모델은 아직 없" in description
+    assert "구현할 때" in description
+    assert (
+        "해당 사용자의 거래, 월별 예산, 소비 분석 리포트를 삭제합니다"
+        not in description
+    )
+
+
 @pytest.mark.parametrize("endpoint", ["sign-in", "sign-up"])
 def test_openapi_credentials_match_official_input_contract(client, endpoint):
     """가입·로그인 공개 필드 제약이 공식 OpenAPI 입력 계약과 일치합니다."""

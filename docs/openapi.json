@@ -1446,7 +1446,7 @@
         ],
         "summary": "본인 계정 삭제",
         "operationId": "delete_api_v1_auth_account",
-        "description": "Authorization: Bearer <JWT>로 인증한 본인 계정과 해당 사용자의 거래, 월별 예산, 소비 분석 리포트를 삭제합니다. 삭제가 완료되면 기존 JWT는 더 이상 사용할 수 없습니다. query와 요청 본문은 허용하지 않습니다.",
+        "description": "Authorization: Bearer <JWT>로 인증한 본인의 User와 같은 username의 LoginAttempt를 한 쓰기 트랜잭션에서 삭제합니다. 거래·월별 예산·소비 분석 리포트 모델은 아직 없으므로, 해당 사용자 소유 모델을 구현할 때 계정 삭제 트랜잭션과 통합 테스트에 함께 포함해야 합니다. 삭제가 완료되면 기존 JWT는 더 이상 사용할 수 없습니다. query와 요청 본문은 허용하지 않습니다.",
         "responses": {
           "200": {
             "description": "계정 삭제가 완료되었습니다.",
