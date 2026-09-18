@@ -1,7 +1,9 @@
 """v1 인증 API의 외부 계약과 사용자 소유권을 검증합니다."""
 
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import jwt
 import pytest
@@ -520,6 +522,70 @@ def test_openapi_token_expiration_contract(client):
         "발급한 JWT가 만료되는 한국 시간입니다. JWT의 exp와 같은 시점입니다."
     )
     assert expires_at["example"] == "2026-09-21T14:30:00+09:00"
+
+
+def test_official_patch_401_allows_only_paired_errors():
+    """공식 PATCH 401 계약이 실제 오류 두 쌍만 허용하도록 제한합니다."""
+    target = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs/openapi.json").read_text()
+    )
+    response = target["paths"][PREFIX + "/account"]["patch"]["responses"]["401"][
+        "content"
+    ]["application/json"]
+    schema = response["schema"]
+    assert schema["type"] == "object"
+    assert set(schema["required"]) == {"status", "code", "message", "data"}
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["status"] == {"type": "integer", "const": 401}
+    assert schema["properties"]["data"] == {"type": "null"}
+    assert schema["properties"]["message"] == {"type": "string"}
+    pairs = {
+        "AUTHENTICATION_REQUIRED": "Authentication is required or the token is invalid.",
+        "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect.",
+    }
+    assert schema["oneOf"] == [
+        {"properties": {"code": {"const": code}, "message": {"const": message}}}
+        for code, message in pairs.items()
+    ]
+    assert {
+        example["value"]["code"]: example["value"]["message"]
+        for example in response["examples"].values()
+    } == pairs
+
+
+@pytest.mark.parametrize("endpoint", ["sign-in", "sign-up"])
+def test_openapi_credentials_match_official_input_contract(client, endpoint):
+    """가입·로그인 공개 필드 제약이 공식 OpenAPI 입력 계약과 일치합니다."""
+    target = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs/openapi.json").read_text()
+    )
+    live = client.get("/openapi.json").json()
+    operation = PREFIX + "/" + endpoint
+    request = live["paths"][operation]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    actual = live["components"]["schemas"][request["$ref"].rsplit("/", 1)[-1]]
+    expected = target["paths"][operation]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    assert actual["required"] == expected["required"]
+    assert actual["additionalProperties"] is False
+    assert {
+        name: {key: value for key, value in field.items() if key != "title"}
+        for name, field in actual["properties"].items()
+    } == expected["properties"]
+
+
+def test_signin_keeps_general_password_comparison(client):
+    """스키마 문서화가 로그인 원문 비교와 길이 오류 응답을 바꾸지 않습니다."""
+    signup(client)
+    for password in ("", "a", "한 글", "a" * 128):
+        response = signin(client, password=password)
+        assert response.status_code == 401
+        assert response.json()["code"] == "INVALID_CREDENTIALS"
+    response = signin(client, password="a" * 129)
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_REQUEST"
 
 
 def test_openapi_account_update_fields_match_target_contract(client):

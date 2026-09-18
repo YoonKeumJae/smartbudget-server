@@ -1268,8 +1268,7 @@
                       "const": 401
                     },
                     "message": {
-                      "type": "string",
-                      "const": "Authentication is required or the token is invalid."
+                      "type": "string"
                     },
                     "data": {
                       "type": "null"
@@ -1277,14 +1276,32 @@
                     "code": {
                       "type": "string",
                       "pattern": "^[A-Z][A-Z0-9_]*$",
-                      "description": "클라이언트가 분기 처리할 안정적인 응답 코드입니다.",
-                      "enum": [
-                        "AUTHENTICATION_REQUIRED",
-                        "CURRENT_PASSWORD_INCORRECT"
-                      ]
+                      "description": "클라이언트가 분기 처리할 안정적인 응답 코드입니다."
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "AUTHENTICATION_REQUIRED"
+                        },
+                        "message": {
+                          "const": "Authentication is required or the token is invalid."
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CURRENT_PASSWORD_INCORRECT"
+                        },
+                        "message": {
+                          "const": "The current password is incorrect."
+                        }
+                      }
+                    }
+                  ]
                 },
                 "examples": {
                   "authentication_required": {

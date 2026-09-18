@@ -21,13 +21,74 @@ CURRENT_PASSWORD = Annotated[
     SecretStr, Field(strict=True, min_length=1, max_length=128)
 ]
 
+NEW_PASSWORD_SCHEMA = WithJsonSchema(
+    {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 20,
+        "format": "password",
+        "writeOnly": True,
+        "pattern": (
+            r"^(?:(?=.*[A-Za-z])(?=.*[0-9])|"
+            r"(?=.*[A-Za-z])(?=.*[!@#$%^&*_=+?\-])|"
+            r"(?=.*[0-9])(?=.*[!@#$%^&*_=+?\-]))"
+            r"[A-Za-z0-9!@#$%^&*_=+?\-]{8,20}(?![\s\S])"
+        ),
+        "description": (
+            "비밀번호: 8–20자, `A–Z`, `a–z`, `0–9`, `!@#$%^&*_-+=?`만 "
+            "허용합니다. 영문·숫자·특수문자 세 종류 중 두 종류 이상이 "
+            "필요합니다. 대소문자를 구분하며 공백·한글·그 외 문자를 "
+            "거부합니다. 가입·비밀번호 변경에 이 정책을 적용하며, 로그인은 "
+            "입력한 비밀번호를 해시와 비교합니다."
+        ),
+    }
+)
+DISPLAY_NAME_SCHEMA = WithJsonSchema(
+    {
+        "type": "string",
+        "pattern": (
+            r"^ *[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ]"
+            r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ ]{0,8}"
+            r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ] *(?![\s\S])"
+        ),
+        "description": (
+            "표시 이름: 일반 공백을 앞뒤에서 제거한 후 2–10자입니다. 한글 "
+            "음절·자모, ASCII 영문·숫자·일반 공백만 허용합니다. 중간 공백을 "
+            "유지하고 글자 수에 포함합니다. 공백만 있는 이름·탭·줄바꿈·"
+            "제어문자·다른 특수문자를 거부합니다. 중복은 허용합니다. 원본 "
+            "입력은 앞뒤 공백을 포함하여 최대 256자이며, 공백 제거 후 2–10자 "
+            "제한은 pattern으로 검사합니다."
+        ),
+        "maxLength": 256,
+    }
+)
+
 
 class Credentials(BaseModel):
     """가입·로그인이 공유하는 필수 문자열과 알 수 없는 필드 거부 규칙입니다."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    username: Annotated[str, Field(min_length=4, max_length=12)]
-    password: PASSWORD
+    username: Annotated[
+        str,
+        Field(
+            min_length=4,
+            max_length=12,
+            description=(
+                "아이디: 4–12자, ASCII 영문·숫자만 허용합니다. 소문자로 저장하여 "
+                "대소문자를 구분하지 않습니다. 공백을 자동 제거하지 않습니다."
+            ),
+            json_schema_extra={"pattern": r"^[A-Za-z0-9]{4,12}(?![\s\S])"},
+        ),
+    ]
+    password: Annotated[
+        PASSWORD,
+        Field(
+            description=(
+                "평문 비밀번호를 저장된 해시와 비교합니다. 가입·변경의 조합 정책은 "
+                "로그인에 적용하지 않습니다. 로그인 원본 입력의 최대 길이는 128자입니다."
+            ),
+        ),
+    ]
 
     @field_validator("username")
     @classmethod
@@ -37,9 +98,10 @@ class Credentials(BaseModel):
 
 
 class Registration(Credentials):
-    """회원가입에 필수 표시 이름을 추가합니다."""
+    """회원가입 필수 입력과 가입·수정 공통 비밀번호·이름 계약을 공개합니다."""
 
-    display_name: NAME
+    password: Annotated[PASSWORD, NEW_PASSWORD_SCHEMA]
+    display_name: Annotated[NAME, DISPLAY_NAME_SCHEMA]
 
 
 class RefreshRequest(BaseModel):
@@ -65,50 +127,11 @@ class AccountUpdate(BaseModel):
     )
     password: Annotated[
         PASSWORD | None,
-        WithJsonSchema(
-            {
-                "type": "string",
-                "minLength": 8,
-                "maxLength": 20,
-                "format": "password",
-                "writeOnly": True,
-                "pattern": (
-                    r"^(?:(?=.*[A-Za-z])(?=.*[0-9])|"
-                    r"(?=.*[A-Za-z])(?=.*[!@#$%^&*_=+?\-])|"
-                    r"(?=.*[0-9])(?=.*[!@#$%^&*_=+?\-]))"
-                    r"[A-Za-z0-9!@#$%^&*_=+?\-]{8,20}(?![\s\S])"
-                ),
-                "description": (
-                    "비밀번호: 8–20자, `A–Z`, `a–z`, `0–9`, `!@#$%^&*_-+=?`만 "
-                    "허용합니다. 영문·숫자·특수문자 세 종류 중 두 종류 이상이 "
-                    "필요합니다. 대소문자를 구분하며 공백·한글·그 외 문자를 "
-                    "거부합니다. 가입·비밀번호 변경에 이 정책을 적용하며, 로그인은 "
-                    "입력한 비밀번호를 해시와 비교합니다."
-                ),
-            }
-        ),
+        NEW_PASSWORD_SCHEMA,
     ] = None
     display_name: Annotated[
         NAME | None,
-        WithJsonSchema(
-            {
-                "type": "string",
-                "pattern": (
-                    r"^ *[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ]"
-                    r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ ]{0,8}"
-                    r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ] *(?![\s\S])"
-                ),
-                "description": (
-                    "표시 이름: 일반 공백을 앞뒤에서 제거한 후 2–10자입니다. 한글 "
-                    "음절·자모, ASCII 영문·숫자·일반 공백만 허용합니다. 중간 공백을 "
-                    "유지하고 글자 수에 포함합니다. 공백만 있는 이름·탭·줄바꿈·"
-                    "제어문자·다른 특수문자를 거부합니다. 중복은 허용합니다. 원본 "
-                    "입력은 앞뒤 공백을 포함하여 최대 256자이며, 공백 제거 후 2–10자 "
-                    "제한은 pattern으로 검사합니다."
-                ),
-                "maxLength": 256,
-            }
-        ),
+        DISPLAY_NAME_SCHEMA,
     ] = None
     current_password: Annotated[
         CURRENT_PASSWORD | None,
