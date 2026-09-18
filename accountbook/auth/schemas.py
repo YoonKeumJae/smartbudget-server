@@ -60,7 +60,22 @@ class TokenData(BaseModel):
     """로그인·갱신의 JWT와 실제 만료 정보를 문서화합니다."""
 
     token: str
-    expires_at: str
+    expires_at: Annotated[
+        str,
+        Field(
+            description=(
+                "발급한 JWT가 만료되는 한국 시간입니다. JWT의 exp와 같은 시점입니다."
+            ),
+            json_schema_extra={
+                "format": "date-time",
+                "pattern": (
+                    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):"
+                    r"[0-5][0-9]:[0-5][0-9]\+09:00(?![\s\S])"
+                ),
+                "example": "2026-09-21T14:30:00+09:00",
+            },
+        ),
+    ]
     token_type: Literal["Bearer"]
 
 

@@ -345,6 +345,23 @@ def test_web_errors_and_openapi_contract(client):
     assert route["responses"]["200"]["content"]["application/json"]["schema"]
 
 
+def test_openapi_token_expiration_contract(client):
+    """생성 OpenAPI가 토큰 만료 시각의 형식과 한국 시간 패턴을 명시합니다."""
+    schema = client.get("/openapi.json").json()
+    expires_at = schema["components"]["schemas"]["TokenData"]["properties"][
+        "expires_at"
+    ]
+    assert expires_at["format"] == "date-time"
+    assert expires_at["pattern"] == (
+        r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):"
+        r"[0-5][0-9]:[0-5][0-9]\+09:00(?![\s\S])"
+    )
+    assert expires_at["description"] == (
+        "발급한 JWT가 만료되는 한국 시간입니다. JWT의 exp와 같은 시점입니다."
+    )
+    assert expires_at["example"] == "2026-09-21T14:30:00+09:00"
+
+
 def test_router_uses_each_apps_database_and_settings(tmp_path):
     """공유 인증 라우터가 서로 다른 앱의 DB·JWT 서명키를 혼용하지 않습니다."""
     first_settings = Settings(
