@@ -15,15 +15,27 @@ from accountbook.database import read_session, write_session
 
 INVALID_LOGIN = "The username or password is incorrect."
 INVALID_TOKEN = "Authentication is required or the token is invalid."
+INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
+CURRENT_PASSWORD_INCORRECT = "CURRENT_PASSWORD_INCORRECT"
+USERNAME_CONFLICT = "USERNAME_CONFLICT"
+SIGN_IN_RATE_LIMITED = "SIGN_IN_RATE_LIMITED"
 
 
 class AuthError(Exception):
     """인증 처리 결과를 비밀 없는 HTTP 응답으로 전달합니다."""
 
-    def __init__(self, status_code: int, message: str, retry_after: int | None = None):
-        """HTTP 상태와 공개 메시지 및 재시도 시간을 보관합니다."""
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        retry_after: int | None = None,
+    ):
+        """HTTP 상태·공개 코드·메시지 및 재시도 시간을 보관합니다."""
         super().__init__(message)
         self.status_code = status_code
+        self.code = code
         self.message = message
         self.retry_after = retry_after
 
@@ -50,7 +62,9 @@ def register(engine: Engine, username: str, password: str, display_name: str) ->
                 )
             )
     except IntegrityError as error:
-        raise AuthError(409, "The username is already in use.") from error
+        raise AuthError(
+            409, USERNAME_CONFLICT, "The username is already in use."
+        ) from error
 
 
 def sign_in(engine: Engine, settings: Settings, username: str, password: str) -> str:
@@ -66,6 +80,7 @@ def sign_in(engine: Engine, settings: Settings, username: str, password: str) ->
         if attempt and attempt.blocked_until and now < attempt.blocked_until:
             error = AuthError(
                 429,
+                SIGN_IN_RATE_LIMITED,
                 "Too many sign-in attempts. Please try again later.",
                 attempt.blocked_until - now,
             )
@@ -89,10 +104,13 @@ def sign_in(engine: Engine, settings: Settings, username: str, password: str) ->
                 if len(attempt.failures) >= 10:
                     attempt.blocked_until = now + 180
                     error = AuthError(
-                        429, "Too many sign-in attempts. Please try again later.", 180
+                        429,
+                        SIGN_IN_RATE_LIMITED,
+                        "Too many sign-in attempts. Please try again later.",
+                        180,
                     )
                 else:
-                    error = AuthError(401, INVALID_LOGIN)
+                    error = AuthError(401, INVALID_CREDENTIALS, INVALID_LOGIN)
                 attempt.expires_at = attempt.blocked_until or now + 300
     if error:
         raise error
@@ -104,14 +122,14 @@ def _claims(token: str, settings: Settings) -> dict:
     try:
         return security.decode_token(token, settings)
     except (jwt.PyJWTError, ValueError, TypeError) as error:
-        raise AuthError(401, INVALID_TOKEN) from error
+        raise AuthError(401, AUTHENTICATION_REQUIRED, INVALID_TOKEN) from error
 
 
 def _user(session: Session, claims: dict) -> User:
     """토큰의 사용자와 현재 활성·폐기 버전 상태를 대조합니다."""
     user = session.get(User, int(claims["sub"]))
     if not user or not user.is_active or user.token_version != claims["ver"]:
-        raise AuthError(401, INVALID_TOKEN)
+        raise AuthError(401, AUTHENTICATION_REQUIRED, INVALID_TOKEN)
     return user
 
 

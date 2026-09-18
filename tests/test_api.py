@@ -54,10 +54,13 @@ def test_account_lifecycle(client):
     assert result.status_code == 200
     assert result.json() == {
         "status": 200,
+        "code": "SUCCESS",
         "message": "The request has been accepted and processed.",
         "data": None,
     }
-    assert signup(client).status_code == 409
+    conflict = signup(client)
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "USERNAME_CONFLICT"
     first = signin(client).json()["data"]["token"]
     other = signin(client).json()["data"]["token"]
     assert account(client, first).json()["data"] == {
@@ -93,7 +96,9 @@ def test_account_lifecycle(client):
         assert (
             client.post(PREFIX + "/refresh", json={"token": token}).status_code == 401
         )
-    assert signin(client).status_code == 401
+    invalid_credentials = signin(client)
+    assert invalid_credentials.status_code == 401
+    assert invalid_credentials.json()["code"] == "INVALID_CREDENTIALS"
     assert signin(client, password="Changed12!").status_code == 200
 
 
@@ -169,7 +174,9 @@ def test_login_block_does_not_extend(client, monkeypatch):
         assert (
             signin(client, username="USER123", password="wrong123").status_code == 401
         )
-    assert signin(client, password="wrong123").status_code == 429
+    limited = signin(client, password="wrong123")
+    assert limited.status_code == 429
+    assert limited.json()["code"] == "SIGN_IN_RATE_LIMITED"
     clock[0] += 179
     blocked = signin(client)
     assert blocked.status_code == 429 and blocked.headers["retry-after"] == "1"
@@ -206,7 +213,9 @@ def test_expired_and_invalid_claims(client):
         missing.pop(field)
         wrong = jwt.encode(missing, key, algorithm="HS256")
         assert account(client, wrong).status_code == 401
-    assert account(client, token + "broken").status_code == 401
+    invalid_token = account(client, token + "broken")
+    assert invalid_token.status_code == 401
+    assert invalid_token.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_concurrent_failures(client):
@@ -277,6 +286,7 @@ def test_database_lock_returns_safe_503(client):
     assert response.status_code == 503
     assert response.json() == {
         "status": 503,
+        "code": "SERVICE_UNAVAILABLE",
         "message": "The service is temporarily unavailable.",
         "data": None,
     }
@@ -289,6 +299,7 @@ def test_error_envelope_and_cors(client, caplog):
         PREFIX + "/sign-up", json={"username": "x", "password": secret}
     )
     assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_REQUEST"
     assert secret not in response.text and secret not in caplog.text
     response = client.options(
         PREFIX + "/account",
