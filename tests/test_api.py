@@ -61,7 +61,9 @@ def test_account_lifecycle(client):
     conflict = signup(client)
     assert conflict.status_code == 409
     assert conflict.json()["code"] == "USERNAME_CONFLICT"
-    first = signin(client).json()["data"]["token"]
+    sign_in_data = signin(client).json()["data"]
+    assert set(sign_in_data) == {"token", "expires_at", "token_type"}
+    first = sign_in_data["token"]
     other = signin(client).json()["data"]["token"]
     assert account(client, first).json()["data"] == {
         "display_name": "홍 길동",
@@ -69,7 +71,9 @@ def test_account_lifecycle(client):
     }
     renewed = client.post(PREFIX + "/refresh", json={"token": first})
     assert renewed.status_code == 200
-    new = renewed.json()["data"]["token"]
+    refresh_data = renewed.json()["data"]
+    assert set(refresh_data) == {"token", "expires_at", "token_type"}
+    new = refresh_data["token"]
     assert first != new
     claims = jwt.decode(
         new,

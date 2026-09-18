@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, FastAPI, Request
 
-from accountbook.auth import service
+from accountbook.auth import security, service
 from accountbook.auth.schemas import (
     AccountData,
     AccountUpdate,
@@ -38,14 +38,14 @@ def sign_up(payload: Registration, request: Request):
     responses={code: ERROR_RESPONSES[code] for code in [400, 401, 429, 503]},
 )
 def sign_in(payload: Credentials, request: Request):
-    """로그인 제한을 적용하고 data.token 한 개를 반환합니다."""
+    """로그인 제한을 적용하고 JWT와 실제 만료 정보를 반환합니다."""
     token = service.sign_in(
         request.app.state.engine,
         request.app.state.settings,
         payload.username,
         payload.password.get_secret_value(),
     )
-    return respond(200, {"token": token})
+    return respond(200, security.token_data(token, request.app.state.settings))
 
 
 @router.post(
@@ -54,15 +54,11 @@ def sign_in(payload: Credentials, request: Request):
     responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
 )
 def refresh(payload: RefreshRequest, request: Request):
-    """만료되지 않은 JWT로 새 유효기간의 JWT를 발급합니다."""
-    return respond(
-        200,
-        {
-            "token": service.refresh(
-                request.app.state.engine, request.app.state.settings, payload.token
-            )
-        },
+    """유효한 JWT로 새 토큰을 발급하고 실제 만료 정보를 반환합니다."""
+    token = service.refresh(
+        request.app.state.engine, request.app.state.settings, payload.token
     )
+    return respond(200, security.token_data(token, request.app.state.settings))
 
 
 @router.get(

@@ -1,6 +1,6 @@
 """인증 라우트의 요청 검증과 응답 데이터 스키마를 정의합니다."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator
 
@@ -57,9 +57,11 @@ class AccountUpdate(BaseModel):
 
 
 class TokenData(BaseModel):
-    """로그인·갱신의 JWT 단일 출력 필드를 문서화합니다."""
+    """로그인·갱신의 JWT와 실제 만료 정보를 문서화합니다."""
 
     token: str
+    expires_at: str
+    token_type: Literal["Bearer"]
 
 
 class AccountData(BaseModel):
