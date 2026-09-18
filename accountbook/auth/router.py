@@ -122,6 +122,26 @@ def update_account(
     return respond(200, result)
 
 
+@router.delete(
+    "/account",
+    response_model=Envelope[None],
+    responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
+)
+def delete_account(
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Security(bearer)
+    ] = None,
+):
+    """Bearer JWT로 인증된 본인 계정과 현재 로그인 제한 상태를 삭제합니다."""
+    service.delete_account(
+        request.app.state.engine,
+        request.app.state.settings,
+        bearer_token(credentials),
+    )
+    return respond(200)
+
+
 def configure_auth(app: FastAPI) -> None:
     """앱에 인증 전송 규칙·인증 오류 처리와 라우터를 함께 등록합니다."""
 

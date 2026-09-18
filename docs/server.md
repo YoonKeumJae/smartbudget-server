@@ -37,7 +37,7 @@ cp .env.example .env
 | PORT | 8000 | 1–65535 정수 |
 | WEB_ORIGINS | [] | 정확한 HTTP/HTTPS origin의 JSON 배열 |
 
-웹 예: `WEB_ORIGINS=["http://localhost:3000","https://example.com"]`. 경로·쿼리·사용자 정보·와일드카드는 허용하지 않습니다. CORS는 GET·POST·PUT, Authorization·Content-Type을 허용하고 Retry-After를 노출합니다. 쿠키 인증을 사용하지 않습니다. CORS는 브라우저 정책이며 안드로이드 인증을 대체하지 않습니다.
+웹 예: `WEB_ORIGINS=["http://localhost:3000","https://example.com"]`. 경로·쿼리·사용자 정보·와일드카드는 허용하지 않습니다. CORS는 GET·POST·PATCH·DELETE, Authorization·Content-Type을 허용하고 Retry-After를 노출합니다. 쿠키 인증을 사용하지 않습니다. CORS는 브라우저 정책이며 안드로이드 인증을 대체하지 않습니다.
 
 `.env`, DB·저널 파일은 Git에서 제외합니다. `.env.example`만 공유합니다. 키·비밀번호·토큰을 로그에 남기지 않습니다. 서명키를 바꾸면 기존 토큰은 검증에 실패합니다. 발급자·수신 대상 변경도 기존 토큰 검증에 영향을 줍니다.
 

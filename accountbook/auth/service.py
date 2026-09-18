@@ -1,5 +1,6 @@
 """계정 생성·로그인 제한·JWT 인증과 본인 정보 변경을 처리합니다."""
 
+import secrets
 import time
 
 import jwt
@@ -59,6 +60,7 @@ def register(engine: Engine, username: str, password: str, display_name: str) ->
                     username=username,
                     password_hash=digest,
                     display_name=display_name,
+                    token_version=secrets.randbelow(2**63 - 1) + 1,
                     created_at=now_seconds(),
                 )
             )
@@ -177,3 +179,13 @@ def update_account(
             user.display_name = values["display_name"]
         result = {"display_name": user.display_name}
     return result
+
+
+def delete_account(engine: Engine, settings: Settings, token: str) -> None:
+    """인증된 사용자와 같은 아이디의 로그인 제한 상태를 함께 삭제합니다."""
+    with write_session(engine) as session:
+        user = _user(session, _claims(token, settings))
+        session.execute(
+            delete(LoginAttempt).where(LoginAttempt.username == user.username)
+        )
+        session.delete(user)

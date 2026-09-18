@@ -4,9 +4,9 @@ FastAPI, PyJWT, SQLAlchemy와 파일 SQLite 서버에 적용할 v1 목표 계약
 
 전체 API 구현 목표와 계약의 기준은 [openapi.json](openapi.json)입니다. 이 문서는 인증 정책의 세부 설명을 보충하며, 내용이 충돌하면 OpenAPI를 따릅니다.
 
-## 현재 구현과의 차이
+## 현재 구현 범위
 
-2026-09-16 현재 Python 서버는 계정 수정을 `PUT /api/v1/auth/account`와 JSON 본문의 token·budget_limit으로 처리하고, 계정 삭제는 제공하지 않습니다. 공통 응답에도 code가 없으며 로그인·갱신 응답은 token만 반환하고 CORS 허용 메서드는 GET·POST·PUT입니다. 아래의 PATCH·DELETE, Bearer 수정 인증, 현재 비밀번호 확인, 월별 예산 분리, code·토큰 만료 정보 응답 계약을 구현할 때 라우터·스키마·서비스·공통 응답·CORS를 함께 변경해야 합니다. 이 문서를 갱신한 것만으로 서버 동작이 바뀌지는 않습니다.
+2026-09-18 현재 Python 서버는 공통 응답 code, 로그인·갱신의 토큰 만료 정보, Bearer 기반 본인 조회·PATCH·DELETE와 현재 비밀번호 확인을 제공합니다. 계정 삭제는 현재 존재하는 `User`와 같은 username의 `LoginAttempt`를 한 쓰기 트랜잭션에서 삭제합니다. 거래·월별 예산·소비 분석 리포트 모델은 아직 없으므로, 해당 기능을 구현할 때 각 소유 모델에 사용자 외래키와 삭제 정책을 추가하고 계정 삭제 통합 테스트도 함께 추가해야 합니다.
 
 ## 공통 계약
 
@@ -98,6 +98,8 @@ POST·PUT·PATCH는 `Content-Type: application/json`을 사용합니다. 알 수
 ### DELETE /api/v1/auth/account
 
 `Authorization: Bearer <JWT>` 헤더로 인증한 본인 계정과 해당 사용자의 거래, 월별 예산, 소비 분석 리포트를 삭제합니다. query와 요청 본문은 허용하지 않습니다. 성공하면 성공 코드 200과 data:null을 반환하며 기존 JWT는 더 이상 사용할 수 없습니다. 인증에 실패하면 오류 코드 401, DB 오류가 발생하면 오류 코드 503을 반환합니다.
+
+현재 서버에는 거래·월별 예산·소비 분석 리포트 모델이 없으므로 `User`와 같은 username의 `LoginAttempt`만 삭제합니다. 이후 사용자 소유 모델을 구현할 때 이 목표 계약에 맞춰 같은 계정 삭제 트랜잭션과 통합 테스트에 포함합니다.
 
 ## 토큰 수명과 보안
 

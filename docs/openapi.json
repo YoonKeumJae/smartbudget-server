@@ -3,7 +3,7 @@
   "info": {
     "title": "AccountBook API 설계 명세",
     "version": "1.2.0",
-    "description": "인증·가계부·소비 분석·OCR에서 구현해야 할 API 계약의 단일 기준인 OpenAPI 3.1 문서입니다. 2026-09-18 현재 Python 서버에는 공통 code 응답, 계정 PATCH·DELETE, 월별 예산 분리, 거래·리포트·OCR API가 아직 구현되지 않았습니다. 구현이 완료될 때까지 실행 중 서버의 /docs와 /openapi.json은 현재 구현 상태를 보여주고, 이 파일은 목표 계약을 나타냅니다.\n\n날짜·일시 형식 규칙: 달력 날짜는 ISO 8601 YYYY-MM-DD, 정확한 시점은 한국 시간 오프셋을 포함한 YYYY-MM-DDTHH:mm:ss+09:00을 사용합니다. 거래 시각처럼 날짜와 분리된 선택 시각은 HH:mm:ss 또는 null을 사용합니다."
+    "description": "인증·가계부·소비 분석·OCR에서 구현해야 할 API 계약의 단일 기준인 OpenAPI 3.1 문서입니다. 2026-09-18 현재 Python 서버는 공통 code 응답과 계정 PATCH·DELETE를 포함한 인증 API를 구현했습니다. 월별 예산 분리, 거래·리포트·OCR API는 아직 구현되지 않았습니다. 구현이 완료될 때까지 실행 중 서버의 /docs와 /openapi.json은 현재 구현 상태를 보여주고, 이 파일은 목표 계약을 나타냅니다.\n\n날짜·일시 형식 규칙: 달력 날짜는 ISO 8601 YYYY-MM-DD, 정확한 시점은 한국 시간 오프셋을 포함한 YYYY-MM-DDTHH:mm:ss+09:00을 사용합니다. 거래 시각처럼 날짜와 분리된 선택 시각은 HH:mm:ss 또는 null을 사용합니다."
   },
   "paths": {
     "/api/v1/auth/sign-up": {

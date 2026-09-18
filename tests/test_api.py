@@ -6,8 +6,11 @@ from concurrent.futures import ThreadPoolExecutor
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
+from accountbook.auth.models import LoginAttempt, User
 from accountbook.config import Settings
+from accountbook.database import read_session
 from accountbook.main import create_app
 
 PREFIX = "/api/v1/auth"
@@ -55,6 +58,83 @@ def patch_account(client, token, payload):
         headers={"Authorization": "Bearer " + token},
         json=payload,
     )
+
+
+def delete_account(client, token):
+    """DELETE 계정 삭제에 Bearer 헤더만 전달합니다."""
+    return client.delete(
+        PREFIX + "/account", headers={"Authorization": "Bearer " + token}
+    )
+
+
+def test_delete_account_removes_user_and_invalidates_token(client):
+    """본인 삭제 후 계정·로그인 제한·기존 JWT를 다시 사용할 수 없습니다."""
+    signup(client)
+    token = signin(client).json()["data"]["token"]
+    assert signin(client, password="Wrong123").status_code == 401
+    with read_session(client.app.state.engine) as session:
+        assert session.get(LoginAttempt, "user123") is not None
+
+    response = delete_account(client, token)
+
+    assert response.status_code == 200
+    assert response.json()["data"] is None
+    assert account(client, token).status_code == 401
+    with read_session(client.app.state.engine) as session:
+        assert session.scalar(select(User).where(User.username == "user123")) is None
+        assert session.get(LoginAttempt, "user123") is None
+    assert signin(client).status_code == 401
+    assert signup(client).status_code == 200
+    new_token = signin(client).json()["data"]["token"]
+    assert account(client, token).status_code == 401
+    assert account(client, new_token).status_code == 200
+
+
+def test_delete_account_keeps_other_user(client):
+    """본인 삭제가 다른 사용자와 그 로그인 제한 상태에 영향을 주지 않습니다."""
+    signup(client)
+    signup(client, username="User456", display_name="다른사용자")
+    first_token = signin(client).json()["data"]["token"]
+    second_token = signin(client, username="user456").json()["data"]["token"]
+    assert signin(client, password="Wrong123").status_code == 401
+    assert signin(client, username="user456", password="Wrong123").status_code == 401
+
+    assert delete_account(client, first_token).status_code == 200
+
+    assert account(client, second_token).json()["data"] == {
+        "display_name": "다른사용자"
+    }
+    with read_session(client.app.state.engine) as session:
+        assert session.scalar(select(User).where(User.username == "user456"))
+        assert session.get(LoginAttempt, "user456") is not None
+
+
+def test_delete_account_authentication_and_input_contract(client):
+    """DELETE는 Bearer JWT만 받고 query·본문은 요청 오류로 거부합니다."""
+    signup(client)
+    token = signin(client).json()["data"]["token"]
+    for response in [
+        client.delete(PREFIX + "/account"),
+        client.delete(PREFIX + "/account", headers={"Authorization": "Bearer invalid"}),
+    ]:
+        assert response.status_code == 401
+        assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
+        assert response.headers["www-authenticate"] == "Bearer"
+    for response in [
+        client.delete(
+            PREFIX + "/account",
+            params={"token": token},
+            headers={"Authorization": "Bearer " + token},
+        ),
+        client.request(
+            "DELETE",
+            PREFIX + "/account",
+            headers={"Authorization": "Bearer " + token},
+            json={},
+        ),
+    ]:
+        assert response.status_code == 400
+        assert response.json()["code"] == "INVALID_REQUEST"
 
 
 def test_account_lifecycle(client):
