@@ -1,6 +1,9 @@
 """인증 라우트와 이 기능의 토큰 전달·인증 오류 규칙을 등록합니다."""
 
-from fastapi import APIRouter, FastAPI, Request
+from typing import Annotated
+
+from fastapi import APIRouter, FastAPI, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from accountbook.auth import security, service
 from accountbook.auth.schemas import (
@@ -14,6 +17,16 @@ from accountbook.auth.schemas import (
 from accountbook.http import ERROR_RESPONSES, INVALID_REQUEST, Envelope, respond
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+bearer = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
+
+
+def bearer_token(credentials: HTTPAuthorizationCredentials | None) -> str:
+    """파싱된 Authorization 헤더를 공통 Bearer 인증 오류로 변환합니다."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise service.AuthError(
+            401, service.AUTHENTICATION_REQUIRED, service.INVALID_TOKEN
+        )
+    return credentials.credentials
 
 
 @router.post(
@@ -64,53 +77,49 @@ def refresh(payload: RefreshRequest, request: Request):
 @router.get(
     "/account",
     response_model=Envelope[AccountData],
-    openapi_extra={
-        "parameters": [
-            {
-                "name": "Authorization",
-                "in": "header",
-                "required": True,
-                "schema": {"type": "string"},
-                "description": "Bearer <JWT>",
-            }
-        ]
-    },
     responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
 )
-def get_account(request: Request):
+def get_account(
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Security(bearer)
+    ] = None,
+):
     """Authorization Bearer로 인증된 본인의 정보만 반환합니다."""
-    parts = request.headers.get("authorization", "").split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise service.AuthError(
-            401, service.AUTHENTICATION_REQUIRED, service.INVALID_TOKEN
-        )
     return respond(
         200,
         service.get_account(
-            request.app.state.engine, request.app.state.settings, parts[1]
+            request.app.state.engine,
+            request.app.state.settings,
+            bearer_token(credentials),
         ),
     )
 
 
-@router.put(
+@router.patch(
     "/account",
-    response_model=Envelope[None],
+    response_model=Envelope[AccountData],
     responses={code: ERROR_RESPONSES[code] for code in [400, 401, 503]},
 )
-def update_account(payload: AccountUpdate, request: Request):
-    """JSON token을 검증해 제공된 본인 정보만 원자적으로 수정합니다."""
-    if payload.token is None:
-        raise service.AuthError(
-            401, service.AUTHENTICATION_REQUIRED, service.INVALID_TOKEN
-        )
+def update_account(
+    payload: AccountUpdate,
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Security(bearer)
+    ] = None,
+):
+    """Bearer JWT로 인증해 제공된 본인 정보만 원자적으로 수정합니다."""
     changes = payload.model_dump(exclude_unset=True)
-    changes.pop("token")
-    if "password" in changes:
-        changes["password"] = changes["password"].get_secret_value()
-    service.update_account(
-        request.app.state.engine, request.app.state.settings, payload.token, changes
+    for field in ("password", "current_password"):
+        if field in changes:
+            changes[field] = changes[field].get_secret_value()
+    result = service.update_account(
+        request.app.state.engine,
+        request.app.state.settings,
+        bearer_token(credentials),
+        changes,
     )
-    return respond(200)
+    return respond(200, result)
 
 
 def configure_auth(app: FastAPI) -> None:
@@ -118,13 +127,13 @@ def configure_auth(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def enforce_transport(request: Request, call_next):
-        """인증 토큰의 위치 혼용과 비JSON 본문 및 GET 본문을 거부합니다."""
+        """갱신 토큰 혼용과 비JSON 쓰기 및 조회·삭제 본문을 거부합니다."""
         if request.url.path.startswith("/api/v1/auth/"):
             if request.query_params:
                 return respond(400, code="INVALID_REQUEST", message=INVALID_REQUEST)
-            if request.method == "GET" and await request.body():
+            if request.method in {"GET", "DELETE"} and await request.body():
                 return respond(400, code="INVALID_REQUEST", message=INVALID_REQUEST)
-            if request.method in {"POST", "PUT"}:
+            if request.method in {"POST", "PATCH"}:
                 if (
                     request.headers.get("content-type", "")
                     .split(";")[0]
@@ -134,24 +143,10 @@ def configure_auth(app: FastAPI) -> None:
                 ):
                     return respond(400, code="INVALID_REQUEST", message=INVALID_REQUEST)
                 if (
-                    request.url.path.endswith(("/refresh", "/account"))
+                    request.url.path.endswith("/refresh")
                     and "authorization" in request.headers
                 ):
                     return respond(400, code="INVALID_REQUEST", message=INVALID_REQUEST)
-                if request.method == "PUT" and request.url.path.endswith("/account"):
-                    try:
-                        payload = await request.json()
-                    except ValueError:
-                        return respond(
-                            400, code="INVALID_REQUEST", message=INVALID_REQUEST
-                        )
-                    if isinstance(payload, dict) and payload.get("token") in (None, ""):
-                        return respond(
-                            401,
-                            code=service.AUTHENTICATION_REQUIRED,
-                            message=service.INVALID_TOKEN,
-                            headers={"WWW-Authenticate": "Bearer"},
-                        )
         return await call_next(request)
 
     @app.exception_handler(service.AuthError)

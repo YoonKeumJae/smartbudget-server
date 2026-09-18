@@ -2,13 +2,23 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 
 from accountbook.auth import security
 
 TOKEN = Annotated[str, Field(strict=True, min_length=1, max_length=4096)]
 NAME = Annotated[str, Field(strict=True, max_length=256)]
 PASSWORD = Annotated[SecretStr, Field(strict=True, max_length=128)]
+CURRENT_PASSWORD = Annotated[
+    SecretStr, Field(strict=True, min_length=1, max_length=128)
+]
 
 
 class Credentials(BaseModel):
@@ -39,21 +49,40 @@ class RefreshRequest(BaseModel):
 
 
 class AccountUpdate(BaseModel):
-    """선택 수정값의 생략과 명시적 null을 구별합니다."""
+    """계정 변경값과 현재·새 비밀번호 쌍의 HTTP 입력 계약을 검증합니다."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
-    token: TOKEN | None = None
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={
+            "minProperties": 1,
+            "dependentRequired": {
+                "password": ["current_password"],
+                "current_password": ["password"],
+            },
+        },
+    )
     password: PASSWORD | None = None
     display_name: NAME | None = None
-    budget_limit: Annotated[StrictInt, Field(ge=0, le=10000000)] | None = None
+    current_password: CURRENT_PASSWORD | None = None
 
-    @field_validator("password", "display_name")
+    @field_validator("password", "display_name", "current_password")
     @classmethod
     def reject_null(cls, value):
-        """생략은 허용하지만 비밀번호·표시 이름의 명시 null은 거부합니다."""
+        """생략은 허용하지만 수정 필드의 명시적 null은 거부합니다."""
         if value is None:
             raise ValueError("Invalid null value")
         return value
+
+    @model_validator(mode="after")
+    def validate_changes(self):
+        """실제 변경과 현재·새 비밀번호의 완전한 쌍만 허용합니다."""
+        supplied = self.model_fields_set
+        if not supplied or supplied == {"current_password"}:
+            raise ValueError("Invalid account update")
+        if ("password" in supplied) != ("current_password" in supplied):
+            raise ValueError("Invalid password pair")
+        return self
 
 
 class TokenData(BaseModel):
@@ -80,7 +109,6 @@ class TokenData(BaseModel):
 
 
 class AccountData(BaseModel):
-    """본인 계정 조회의 표시 이름과 nullable 월 예산을 문서화합니다."""
+    """본인 계정 조회·수정 응답의 표시 이름을 문서화합니다."""
 
     display_name: str
-    budget_limit: int | None

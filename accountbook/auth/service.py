@@ -18,6 +18,7 @@ INVALID_TOKEN = "Authentication is required or the token is invalid."
 INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
 AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
 CURRENT_PASSWORD_INCORRECT = "CURRENT_PASSWORD_INCORRECT"
+CURRENT_PASSWORD_MESSAGE = "The current password is incorrect."
 USERNAME_CONFLICT = "USERNAME_CONFLICT"
 SIGN_IN_RATE_LIMITED = "SIGN_IN_RATE_LIMITED"
 
@@ -148,25 +149,31 @@ def refresh(engine: Engine, settings: Settings, token: str) -> str:
 
 
 def get_account(engine: Engine, settings: Settings, token: str) -> dict:
-    """인증된 본인의 표시 이름과 예산만 반환합니다."""
+    """인증된 본인의 표시 이름만 반환합니다."""
     user = authenticate(engine, settings, token)
-    return {"display_name": user.display_name, "budget_limit": user.budget_limit}
+    return {"display_name": user.display_name}
 
 
 def update_account(
     engine: Engine, settings: Settings, token: str, changes: dict
-) -> None:
-    """본인 정보를 원자적으로 변경하고 비밀번호 변경 시 기존 JWT를 폐기합니다."""
-    authenticate(engine, settings, token)
+) -> dict[str, str]:
+    """현재 비밀번호 확인과 본인 정보 변경을 한 쓰기 트랜잭션에 처리합니다."""
     values = dict(changes)
+    current_password = values.pop("current_password", None)
     if "display_name" in values:
         values["display_name"] = security.validate_display_name(values["display_name"])
     if "password" in values:
         security.validate_password(values["password"])
-        values["password_hash"] = security.hash_password(values.pop("password"))
     with write_session(engine) as session:
         user = _user(session, _claims(token, settings))
-        for field, value in values.items():
-            setattr(user, field, value)
-        if "password_hash" in values:
+        if "password" in values:
+            if not security.verify_password(current_password, user.password_hash):
+                raise AuthError(
+                    401, CURRENT_PASSWORD_INCORRECT, CURRENT_PASSWORD_MESSAGE
+                )
+            user.password_hash = security.hash_password(values["password"])
             user.token_version += 1
+        if "display_name" in values:
+            user.display_name = values["display_name"]
+        result = {"display_name": user.display_name}
+    return result

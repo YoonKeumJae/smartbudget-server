@@ -48,6 +48,15 @@ def account(client, token):
     return client.get(PREFIX + "/account", headers={"Authorization": "Bearer " + token})
 
 
+def patch_account(client, token, payload):
+    """PATCH 계정 수정에 Bearer 헤더와 변경 JSON만 전달합니다."""
+    return client.patch(
+        PREFIX + "/account",
+        headers={"Authorization": "Bearer " + token},
+        json=payload,
+    )
+
+
 def test_account_lifecycle(client):
     """가입·부분 수정·갱신·비밀번호 폐기의 전체 흐름을 검증합니다."""
     result = signup(client, display_name="  홍 길동  ")
@@ -65,10 +74,7 @@ def test_account_lifecycle(client):
     assert set(sign_in_data) == {"token", "expires_at", "token_type"}
     first = sign_in_data["token"]
     other = signin(client).json()["data"]["token"]
-    assert account(client, first).json()["data"] == {
-        "display_name": "홍 길동",
-        "budget_limit": None,
-    }
+    assert account(client, first).json()["data"] == {"display_name": "홍 길동"}
     renewed = client.post(PREFIX + "/refresh", json={"token": first})
     assert renewed.status_code == 200
     refresh_data = renewed.json()["data"]
@@ -84,17 +90,17 @@ def test_account_lifecycle(client):
     )
     assert claims["exp"] - claims["iat"] == 432000
     assert account(client, first).status_code == 200
-    for value in [0, 10000000, None]:
-        result = client.put(
-            PREFIX + "/account", json={"token": first, "budget_limit": value}
-        )
-        assert result.status_code == 200
-        assert account(client, first).json()["data"]["budget_limit"] == value
-    assert client.put(PREFIX + "/account", json={"token": first}).status_code == 200
-    changed = client.put(
-        PREFIX + "/account", json={"token": first, "password": "Changed12!"}
+    renamed = patch_account(client, first, {"display_name": "새 이름"})
+    assert renamed.status_code == 200
+    assert renamed.json()["data"] == {"display_name": "새 이름"}
+    assert account(client, first).status_code == 200
+    changed = patch_account(
+        client,
+        first,
+        {"current_password": "Abcdef12", "password": "Changed12!"},
     )
-    assert changed.status_code == 200 and changed.json()["data"] is None
+    assert changed.status_code == 200
+    assert changed.json()["data"] == {"display_name": "새 이름"}
     for token in [first, other, new]:
         assert account(client, token).status_code == 401
         assert (
@@ -106,17 +112,45 @@ def test_account_lifecycle(client):
     assert signin(client, password="Changed12!").status_code == 200
 
 
-@pytest.mark.parametrize("value", [-1, 10000001, True, 1.5, "1000"])
-def test_invalid_budget_is_atomic(client, value):
-    """예산 오류가 있으면 표시 이름 변경도 저장되지 않습니다."""
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"display_name": None},
+        {"password": None, "current_password": "Abcdef12"},
+        {"password": "Changed12!", "current_password": None},
+        {"password": "Changed12!"},
+        {"current_password": "Abcdef12"},
+        {"budget_limit": 1000},
+    ],
+)
+def test_invalid_account_update_contract(client, payload):
+    """빈 값·null·불완전 비밀번호 쌍·폐기 필드를 오류 코드 400으로 거부합니다."""
     signup(client)
     token = signin(client).json()["data"]["token"]
-    result = client.put(
-        PREFIX + "/account",
-        json={"token": token, "budget_limit": value, "display_name": "다른이름"},
-    )
+    result = patch_account(client, token, payload)
     assert result.status_code == 400
-    assert account(client, token).json()["data"]["display_name"] == "홍길동"
+    assert result.json()["code"] == "INVALID_REQUEST"
+
+
+def test_wrong_current_password_keeps_all_account_values(client):
+    """현재 비밀번호가 틀리면 표시 이름과 비밀번호를 함께 유지합니다."""
+    signup(client)
+    token = signin(client).json()["data"]["token"]
+    result = patch_account(
+        client,
+        token,
+        {
+            "current_password": "wrong123",
+            "password": "Changed12!",
+            "display_name": "다른이름",
+        },
+    )
+    assert result.status_code == 401
+    assert result.json()["code"] == "CURRENT_PASSWORD_INCORRECT"
+    assert account(client, token).json()["data"] == {"display_name": "홍길동"}
+    assert signin(client).status_code == 200
+    assert signin(client, password="Changed12!").status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -134,26 +168,21 @@ def test_user_isolation_and_input_contract(client):
     first = signin(client).json()["data"]["token"]
     second = signin(client, username="user456").json()["data"]["token"]
     assert account(client, second).json()["data"]["display_name"] == "다른사용자"
-    assert (
-        client.put(
-            PREFIX + "/account", json={"token": first, "username": "user456"}
-        ).status_code
-        == 400
-    )
+    assert patch_account(client, first, {"username": "user456"}).status_code == 400
     assert client.get(PREFIX + "/account", params={"token": first}).status_code == 400
     assert client.get(PREFIX + "/account").status_code == 401
-    assert client.put(PREFIX + "/account", json={}).status_code == 401
+    assert (
+        client.patch(PREFIX + "/account", json={"display_name": "새 이름"}).status_code
+        == 401
+    )
     assert client.post(PREFIX + "/refresh", json={}).status_code == 400
     assert client.post(PREFIX + "/sign-up", json={}).status_code == 400
+    assert client.patch(PREFIX + "/account", json={"token": first}).status_code == 400
     assert (
-        client.put(
-            PREFIX + "/account", json={"token": first, "display_name": None}
-        ).status_code
-        == 400
-    )
-    assert (
-        client.put(
-            PREFIX + "/account", json={"token": first, "password": None}
+        client.patch(
+            PREFIX + "/account",
+            headers={"Authorization": "Bearer " + first},
+            json={"token": first, "display_name": "새 이름"},
         ).status_code
         == 400
     )
@@ -265,20 +294,17 @@ def test_restart_keeps_user_and_revocation(tmp_path):
         signup(first)
         token = signin(first).json()["data"]["token"]
         assert (
-            first.put(
-                PREFIX + "/account",
-                json={
-                    "token": token,
-                    "password": "Changed12!",
-                    "budget_limit": 1000000,
-                },
+            patch_account(
+                first,
+                token,
+                {"current_password": "Abcdef12", "password": "Changed12!"},
             ).status_code
             == 200
         )
     with TestClient(create_app(settings)) as second:
         assert account(second, token).status_code == 401
         new = signin(second, password="Changed12!").json()["data"]["token"]
-        assert account(second, new).json()["data"]["budget_limit"] == 1000000
+        assert account(second, new).json()["data"] == {"display_name": "홍길동"}
 
 
 def test_database_lock_returns_safe_503(client):
@@ -297,7 +323,7 @@ def test_database_lock_returns_safe_503(client):
 
 
 def test_error_envelope_and_cors(client, caplog):
-    """오류에 기밀 입력을 복사하지 않고 웹 PUT preflight를 허용합니다."""
+    """오류에 기밀 입력을 복사하지 않고 웹 PATCH preflight를 허용합니다."""
     secret = "SensitivePassword123!"
     response = client.post(
         PREFIX + "/sign-up", json={"username": "x", "password": secret}
@@ -309,7 +335,7 @@ def test_error_envelope_and_cors(client, caplog):
         PREFIX + "/account",
         headers={
             "Origin": "https://web.example.test",
-            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Method": "PATCH",
             "Access-Control-Request-Headers": "Content-Type",
         },
     )
@@ -323,8 +349,10 @@ def test_invalid_token_does_not_hash_new_password(client, monkeypatch):
 
     calls = []
     monkeypatch.setattr(security, "hash_password", lambda value: calls.append(value))
-    response = client.put(
-        PREFIX + "/account", json={"token": "invalid", "password": "Changed12!"}
+    response = client.patch(
+        PREFIX + "/account",
+        headers={"Authorization": "Bearer invalid"},
+        json={"current_password": "Abcdef12", "password": "Changed12!"},
     )
     assert response.status_code == 401
     assert calls == []
@@ -332,8 +360,10 @@ def test_invalid_token_does_not_hash_new_password(client, monkeypatch):
 
 def test_web_errors_and_openapi_contract(client):
     """웹 오류에도 CORS 헤더가 있으며 OpenAPI 상태표가 실제 API와 일치합니다."""
-    response = client.put(
-        PREFIX + "/account", json={}, headers={"Origin": "https://web.example.test"}
+    response = client.patch(
+        PREFIX + "/account",
+        json={"display_name": "새 이름"},
+        headers={"Origin": "https://web.example.test"},
     )
     assert response.status_code == 401
     assert response.headers["access-control-allow-origin"] == "https://web.example.test"
