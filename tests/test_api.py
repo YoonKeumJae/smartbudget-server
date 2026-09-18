@@ -392,6 +392,75 @@ def test_openapi_token_expiration_contract(client):
     assert expires_at["example"] == "2026-09-21T14:30:00+09:00"
 
 
+def test_openapi_account_update_fields_match_target_contract(client):
+    """PATCH 계정 수정 필드가 null 없이 목표 제약을 생성 OpenAPI에 공개합니다."""
+    schema = client.get("/openapi.json").json()
+    request_schema = schema["paths"][PREFIX + "/account"]["patch"]["requestBody"][
+        "content"
+    ]["application/json"]["schema"]
+    assert request_schema == {"$ref": "#/components/schemas/AccountUpdate"}
+    update = schema["components"]["schemas"]["AccountUpdate"]
+    properties = {
+        name: {key: value for key, value in field.items() if key != "title"}
+        for name, field in update["properties"].items()
+    }
+    assert properties == {
+        "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 20,
+            "format": "password",
+            "writeOnly": True,
+            "pattern": (
+                r"^(?:(?=.*[A-Za-z])(?=.*[0-9])|"
+                r"(?=.*[A-Za-z])(?=.*[!@#$%^&*_=+?\-])|"
+                r"(?=.*[0-9])(?=.*[!@#$%^&*_=+?\-]))"
+                r"[A-Za-z0-9!@#$%^&*_=+?\-]{8,20}(?![\s\S])"
+            ),
+            "description": (
+                "비밀번호: 8–20자, `A–Z`, `a–z`, `0–9`, `!@#$%^&*_-+=?`만 "
+                "허용합니다. 영문·숫자·특수문자 세 종류 중 두 종류 이상이 "
+                "필요합니다. 대소문자를 구분하며 공백·한글·그 외 문자를 "
+                "거부합니다. 가입·비밀번호 변경에 이 정책을 적용하며, 로그인은 "
+                "입력한 비밀번호를 해시와 비교합니다."
+            ),
+        },
+        "display_name": {
+            "type": "string",
+            "pattern": (
+                r"^ *[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ]"
+                r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ ]{0,8}"
+                r"[A-Za-z0-9가-힣ㄱ-ㆎᄀ-ᇿ] *(?![\s\S])"
+            ),
+            "description": (
+                "표시 이름: 일반 공백을 앞뒤에서 제거한 후 2–10자입니다. 한글 "
+                "음절·자모, ASCII 영문·숫자·일반 공백만 허용합니다. 중간 공백을 "
+                "유지하고 글자 수에 포함합니다. 공백만 있는 이름·탭·줄바꿈·"
+                "제어문자·다른 특수문자를 거부합니다. 중복은 허용합니다. 원본 "
+                "입력은 앞뒤 공백을 포함하여 최대 256자이며, 공백 제거 후 2–10자 "
+                "제한은 pattern으로 검사합니다."
+            ),
+            "maxLength": 256,
+        },
+        "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "format": "password",
+            "writeOnly": True,
+            "description": (
+                "password를 바꿀 때 확인할 현재 비밀번호입니다. password와 함께 "
+                "전달해야 합니다."
+            ),
+        },
+    }
+    assert update["minProperties"] == 1
+    assert update["dependentRequired"] == {
+        "password": ["current_password"],
+        "current_password": ["password"],
+    }
+
+
 def test_router_uses_each_apps_database_and_settings(tmp_path):
     """공유 인증 라우터가 서로 다른 앱의 DB·JWT 서명키를 혼용하지 않습니다."""
     first_settings = Settings(
