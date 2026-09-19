@@ -1,5 +1,6 @@
 """계정 생성·로그인 제한·JWT 인증과 본인 정보 변경을 처리합니다."""
 
+import secrets
 import time
 
 import jwt
@@ -15,15 +16,28 @@ from accountbook.database import read_session, write_session
 
 INVALID_LOGIN = "The username or password is incorrect."
 INVALID_TOKEN = "Authentication is required or the token is invalid."
+INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
+CURRENT_PASSWORD_INCORRECT = "CURRENT_PASSWORD_INCORRECT"
+CURRENT_PASSWORD_MESSAGE = "The current password is incorrect."
+USERNAME_CONFLICT = "USERNAME_CONFLICT"
+SIGN_IN_RATE_LIMITED = "SIGN_IN_RATE_LIMITED"
 
 
 class AuthError(Exception):
     """인증 처리 결과를 비밀 없는 HTTP 응답으로 전달합니다."""
 
-    def __init__(self, status_code: int, message: str, retry_after: int | None = None):
-        """HTTP 상태와 공개 메시지 및 재시도 시간을 보관합니다."""
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        retry_after: int | None = None,
+    ):
+        """HTTP 상태·공개 코드·메시지 및 재시도 시간을 보관합니다."""
         super().__init__(message)
         self.status_code = status_code
+        self.code = code
         self.message = message
         self.retry_after = retry_after
 
@@ -46,11 +60,14 @@ def register(engine: Engine, username: str, password: str, display_name: str) ->
                     username=username,
                     password_hash=digest,
                     display_name=display_name,
+                    token_version=secrets.randbelow(2**63 - 1) + 1,
                     created_at=now_seconds(),
                 )
             )
     except IntegrityError as error:
-        raise AuthError(409, "The username is already in use.") from error
+        raise AuthError(
+            409, USERNAME_CONFLICT, "The username is already in use."
+        ) from error
 
 
 def sign_in(engine: Engine, settings: Settings, username: str, password: str) -> str:
@@ -66,6 +83,7 @@ def sign_in(engine: Engine, settings: Settings, username: str, password: str) ->
         if attempt and attempt.blocked_until and now < attempt.blocked_until:
             error = AuthError(
                 429,
+                SIGN_IN_RATE_LIMITED,
                 "Too many sign-in attempts. Please try again later.",
                 attempt.blocked_until - now,
             )
@@ -89,10 +107,13 @@ def sign_in(engine: Engine, settings: Settings, username: str, password: str) ->
                 if len(attempt.failures) >= 10:
                     attempt.blocked_until = now + 180
                     error = AuthError(
-                        429, "Too many sign-in attempts. Please try again later.", 180
+                        429,
+                        SIGN_IN_RATE_LIMITED,
+                        "Too many sign-in attempts. Please try again later.",
+                        180,
                     )
                 else:
-                    error = AuthError(401, INVALID_LOGIN)
+                    error = AuthError(401, INVALID_CREDENTIALS, INVALID_LOGIN)
                 attempt.expires_at = attempt.blocked_until or now + 300
     if error:
         raise error
@@ -104,14 +125,14 @@ def _claims(token: str, settings: Settings) -> dict:
     try:
         return security.decode_token(token, settings)
     except (jwt.PyJWTError, ValueError, TypeError) as error:
-        raise AuthError(401, INVALID_TOKEN) from error
+        raise AuthError(401, AUTHENTICATION_REQUIRED, INVALID_TOKEN) from error
 
 
 def _user(session: Session, claims: dict) -> User:
     """토큰의 사용자와 현재 활성·폐기 버전 상태를 대조합니다."""
     user = session.get(User, int(claims["sub"]))
     if not user or not user.is_active or user.token_version != claims["ver"]:
-        raise AuthError(401, INVALID_TOKEN)
+        raise AuthError(401, AUTHENTICATION_REQUIRED, INVALID_TOKEN)
     return user
 
 
@@ -130,25 +151,41 @@ def refresh(engine: Engine, settings: Settings, token: str) -> str:
 
 
 def get_account(engine: Engine, settings: Settings, token: str) -> dict:
-    """인증된 본인의 표시 이름과 예산만 반환합니다."""
+    """인증된 본인의 표시 이름만 반환합니다."""
     user = authenticate(engine, settings, token)
-    return {"display_name": user.display_name, "budget_limit": user.budget_limit}
+    return {"display_name": user.display_name}
 
 
 def update_account(
     engine: Engine, settings: Settings, token: str, changes: dict
-) -> None:
-    """본인 정보를 원자적으로 변경하고 비밀번호 변경 시 기존 JWT를 폐기합니다."""
-    authenticate(engine, settings, token)
+) -> dict[str, str]:
+    """현재 비밀번호 확인과 본인 정보 변경을 한 쓰기 트랜잭션에 처리합니다."""
     values = dict(changes)
+    current_password = values.pop("current_password", None)
     if "display_name" in values:
         values["display_name"] = security.validate_display_name(values["display_name"])
     if "password" in values:
         security.validate_password(values["password"])
-        values["password_hash"] = security.hash_password(values.pop("password"))
     with write_session(engine) as session:
         user = _user(session, _claims(token, settings))
-        for field, value in values.items():
-            setattr(user, field, value)
-        if "password_hash" in values:
+        if "password" in values:
+            if not security.verify_password(current_password, user.password_hash):
+                raise AuthError(
+                    401, CURRENT_PASSWORD_INCORRECT, CURRENT_PASSWORD_MESSAGE
+                )
+            user.password_hash = security.hash_password(values["password"])
             user.token_version += 1
+        if "display_name" in values:
+            user.display_name = values["display_name"]
+        result = {"display_name": user.display_name}
+    return result
+
+
+def delete_account(engine: Engine, settings: Settings, token: str) -> None:
+    """인증된 사용자와 같은 아이디의 로그인 제한 상태를 함께 삭제합니다."""
+    with write_session(engine) as session:
+        user = _user(session, _claims(token, settings))
+        session.execute(
+            delete(LoginAttempt).where(LoginAttempt.username == user.username)
+        )
+        session.delete(user)

@@ -2,8 +2,10 @@
 
 import re
 import time
+from datetime import datetime
 from threading import BoundedSemaphore
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import jwt
 from pwdlib import PasswordHash
@@ -14,6 +16,7 @@ from accountbook.config import Settings
 _PASSWORD_HASH = PasswordHash.recommended()
 _HASH_SLOT = BoundedSemaphore(1)
 _REQUIRED_CLAIMS = ["sub", "ver", "jti", "iat", "exp", "iss", "aud"]
+KOREA_TIMEZONE = ZoneInfo("Asia/Seoul")
 
 
 def now_seconds() -> int:
@@ -121,3 +124,11 @@ def decode_token(value: str, settings: Settings) -> dict:
     except ValueError:
         raise jwt.InvalidTokenError("Invalid token claims") from None
     return claims
+
+
+def token_data(token: str, settings: Settings) -> dict[str, str]:
+    """검증된 JWT와 exp를 클라이언트용 Bearer 토큰 데이터로 변환합니다."""
+    expires_at = datetime.fromtimestamp(
+        decode_token(token, settings)["exp"], KOREA_TIMEZONE
+    ).isoformat(timespec="seconds")
+    return {"token": token, "expires_at": expires_at, "token_type": "Bearer"}

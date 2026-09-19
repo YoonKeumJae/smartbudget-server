@@ -1,6 +1,7 @@
 """사용자 입력 정책과 실제 Argon2·JWT 검증을 확인합니다."""
 
 import time
+from datetime import datetime, timedelta
 
 import jwt
 import pytest
@@ -10,6 +11,7 @@ from accountbook.auth.security import (
     hash_password,
     issue_token,
     normalize_username,
+    token_data,
     validate_display_name,
     validate_password,
     verify_password,
@@ -105,6 +107,19 @@ def test_jwt_contract():
             jwt.encode(claims, "z" * 64, algorithm="HS384"),
             settings,
         )
+
+
+def test_token_data_matches_exp():
+    """응답 만료 시각이 JWT exp와 같고 한국 시간 오프셋을 사용합니다."""
+    settings = Settings(_env_file=None, jwt_secret="x" * 43)
+    token = issue_token(1, 0, settings)
+    claims = decode_token(token, settings)
+    data = token_data(token, settings)
+    assert data["token"] == token
+    assert data["token_type"] == "Bearer"
+    expires_at = datetime.fromisoformat(data["expires_at"])
+    assert expires_at.utcoffset() == timedelta(hours=9)
+    assert int(expires_at.timestamp()) == claims["exp"]
 
 
 def test_corrupt_hash_is_authentication_failure():
