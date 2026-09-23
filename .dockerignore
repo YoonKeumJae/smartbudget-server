@@ -1,0 +1,15 @@
+.git
+.gitignore
+.harness-state
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+*.py[codz]
+*.sqlite3*
+.env
+.env.*
+!.env.example
+data
+docs
+tests
