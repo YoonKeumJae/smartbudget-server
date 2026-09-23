@@ -57,7 +57,7 @@ uv run --frozen python -m accountbook
 | JWT_AUDIENCE | accountbook-api | 비어 있지 않은 수신 대상 |
 | TOKEN_SECONDS | 432000 | 양의 정수 초; 기본 5일 |
 | DATABASE_PATH | ./data/accountbook.sqlite3 | SQLite 파일 경로 |
-| HOST | 127.0.0.1 | 비어 있지 않은 바인딩 주소 |
+| HOST | 0.0.0.0 | 비어 있지 않은 바인딩 주소 |
 | PORT | 8000 | 1–65535 정수 |
 | WEB_ORIGINS | [] | 정확한 HTTP/HTTPS origin의 JSON 배열 |
 
