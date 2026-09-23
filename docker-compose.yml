@@ -7,6 +7,10 @@ services:
       - "8000:8000"
     build:
       context: .
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-unknown}
+        BUILD_CHANNEL: local_docker
+        BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-}
     env_file:
       - .env
     environment:

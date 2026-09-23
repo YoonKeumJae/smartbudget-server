@@ -72,11 +72,19 @@ jobs:
             type=raw,value=latest
             type=sha,prefix=sha-
 
+      - name: Set build timestamp
+        id: build
+        run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
+          build-args: |
+            BUILD_VERSION=${{ github.sha }}
+            BUILD_CHANNEL=remote_registry
+            BUILD_TIMESTAMP=${{ steps.build.outputs.timestamp }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha

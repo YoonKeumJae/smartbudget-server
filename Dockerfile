@@ -18,6 +18,12 @@ COPY accountbook ./accountbook
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
+ARG BUILD_VERSION=unknown
+ARG BUILD_CHANNEL=local_docker
+ARG BUILD_TIMESTAMP
+RUN BUILD_VERSION="$BUILD_VERSION" BUILD_CHANNEL="$BUILD_CHANNEL" BUILD_TIMESTAMP="$BUILD_TIMESTAMP" python -c \
+    "import json, os; from datetime import datetime, timedelta, timezone; from pathlib import Path; timestamp = os.environ['BUILD_TIMESTAMP'] or datetime.now(timezone(timedelta(hours=9))).isoformat(); Path('/app/build-info.json').write_text(json.dumps({'build_timestamp': timestamp, 'version': os.environ['BUILD_VERSION'], 'channel': os.environ['BUILD_CHANNEL']}), encoding='utf-8')"
+
 
 FROM python:3.14.7-slim-trixie AS runtime
 
@@ -36,6 +42,7 @@ RUN useradd --system --uid 10001 --create-home appuser \
 
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /app/accountbook /app/accountbook
+COPY --from=builder --chown=appuser:appuser /app/build-info.json /app/build-info.json
 
 USER appuser
 

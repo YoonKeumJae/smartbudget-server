@@ -9,11 +9,18 @@ from accountbook.auth.router import configure_auth
 from accountbook.config import Settings
 from accountbook.database import Base, build_engine
 from accountbook.http import configure_http
+from accountbook.version.router import configure_version
+from accountbook.version.schemas import VersionData
+from accountbook.version.service import load_version_data
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    version_data: VersionData | None = None,
+) -> FastAPI:
     """설정과 독립 엔진을 가진 FastAPI 앱의 수명 및 라우트를 구성합니다."""
     settings = settings or Settings()
+    version_data = version_data or load_version_data()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -27,8 +34,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AccountBook API", version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
+    app.state.version_data = version_data
 
     configure_http(app)
+    configure_version(app)
     configure_auth(app)
 
     app.add_middleware(

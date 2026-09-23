@@ -50,7 +50,17 @@ uv run --frozen python -m accountbook
 
 먼저 `.env.example`을 `.env`로 복사하고 `JWT_SECRET`을 설정합니다. 로컬 소스에서 이미지를 빌드해 실행하려면 다음 명령을 사용합니다.
 
+### Linux, macOS
+
 ```sh
+BUILD_VERSION=$(git rev-parse HEAD) BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) docker compose up -d --build
+```
+
+### Windows PowerShell
+
+```powershell
+$env:BUILD_VERSION = git rev-parse HEAD
+$env:BUILD_TIMESTAMP = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 docker compose up -d --build
 ```
 
@@ -68,6 +78,33 @@ docker compose up -d
 ```sh
 docker compose down
 ```
+
+## 서버 버전 API
+
+인증 없이 `GET /api/v1/version`을 호출하면 실행 중인 서버의 빌드 정보를 공통 응답 봉투로 반환합니다. 쿼리 파라미터와 요청 본문은 허용하지 않습니다.
+
+```json
+{
+  "status": 200,
+  "code": "SUCCESS",
+  "message": "The request has been accepted and processed.",
+  "data": {
+    "build_timestamp": "2026-09-23T21:30:00+09:00",
+    "version": "18ae094000000000000000000000000000000000",
+    "channel": "remote_registry"
+  }
+}
+```
+
+`build_timestamp`는 Docker 이미지 빌드 시각이며, 직접 실행에서는 앱 생성 시각입니다. `version`은 Git 커밋 해시 또는 Docker 이미지 해시를 사용합니다. Git 정보를 읽을 수 없는 직접 실행 또는 빌드 인자를 생략한 로컬 Docker 빌드에서는 `unknown`입니다. 위 로컬 Docker 빌드 명령은 현재 시각과 커밋을 빌드 인자로 전달하며, GHCR 게시 워크플로우는 빌드 시각과 `github.sha`를 자동 전달합니다.
+
+`channel` 값은 다음과 같습니다.
+
+| 값 | 의미 |
+| --- | --- |
+| `local_direct` | Python으로 로컬 소스를 직접 실행 |
+| `local_docker` | 로컬 소스에서 빌드한 Docker 이미지 실행 |
+| `remote_registry` | GHCR 게시 워크플로우가 빌드한 원격 저장소 이미지 실행 |
 
 ## 환경 설정
 
@@ -116,15 +153,20 @@ accountbook/
 ├── config.py         # 환경 설정
 ├── database.py       # 공통 Base·DB 연결·트랜잭션
 ├── http.py           # 공통 응답·오류 처리·OpenAPI
-└── auth/
+├── auth/
+│   ├── __init__.py
+│   ├── router.py     # 인증 API·토큰 전달 규칙·인증 오류 처리
+│   ├── schemas.py    # 인증 요청·응답 모델
+│   ├── service.py    # 가입·로그인·계정 변경
+│   ├── security.py   # 비밀번호 검증·해시·JWT
+│   └── models.py     # User·LoginAttempt 테이블
+└── version/
     ├── __init__.py
-    ├── router.py     # 인증 API·토큰 전달 규칙·인증 오류 처리
-    ├── schemas.py    # 인증 요청·응답 모델
-    ├── service.py    # 가입·로그인·계정 변경
-    ├── security.py   # 비밀번호 검증·해시·JWT
-    └── models.py     # User·LoginAttempt 테이블
+    ├── router.py     # 서버 버전 조회 API
+    ├── schemas.py    # 빌드 정보·응답 모델
+    └── service.py    # Docker 빌드 정보 또는 로컬 Git 메타데이터 로딩
 ```
 
-라우트는 Request의 app.state에서 해당 앱의 설정·엔진을 읽습니다. 모듈 전역에 앱별 DB나 설정을 저장하지 않습니다. main.py는 공통 HTTP 처리, 인증 라우터, 가장 바깥의 CORS 순으로 구성합니다. 인증 전송 검사에서 즉시 반환하는 오류에도 CORS가 적용됩니다.
+라우트는 Request의 app.state에서 해당 앱의 설정·엔진·버전 정보를 읽습니다. 모듈 전역에 앱별 DB나 설정을 저장하지 않습니다. main.py는 공통 HTTP 처리, 버전·인증 라우터, 가장 바깥의 CORS 순으로 구성합니다. 인증 전송 검사에서 즉시 반환하는 오류에도 CORS가 적용됩니다.
 
 새 기능은 실제로 추가할 때 auth/와 같은 수준의 디렉토리로 묶고 main.py에서 라우터를 등록합니다. 기능별 models.py는 공통 database.Base를 상속합니다. 앱 시작 시 create_all을 실행하기 전에 해당 모델 모듈을 불러와 메타데이터에 등록해야 합니다. 현재는 인증 라우터 → service → models의 import로 등록합니다. build_engine은 연결만 구성하고 테이블 초기화는 앱 수명주기에서 수행합니다. 별도의 repository·추상 인터페이스 계층은 없습니다.
