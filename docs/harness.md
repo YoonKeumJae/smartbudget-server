@@ -12,13 +12,13 @@
 
 pytest는 `docs/`와 모든 하위 폴더의 파일 목록을 index 링크와 비교합니다. 새 문서를 표에 등록하지 않거나 존재하지 않는 경로를 남기면 테스트가 실패합니다.
 
-지원 Python 버전은 3.14 계열입니다. 아래 명령을 실행하기 전에 `python3 --version`으로 3.14인지 확인합니다.
+지원 Python 버전은 3.14 계열이며 `.python-version`으로 고정합니다. uv가 없다면 먼저 설치한 뒤 아래 명령으로 Python과 잠금 파일에 고정된 개발 환경을 준비합니다.
 
 ## 최초 준비
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+uv python install 3.14
+uv sync --frozen
 ```
 
 새 Codex 실행에서 프로젝트 훅을 검토하고 신뢰해야 `.codex/hooks.json`이 동작합니다. CLI에서는 `/hooks`로 상태를 확인할 수 있습니다. 훅을 신뢰하기 전에는 검증이 강제되지 않습니다.
@@ -38,7 +38,7 @@ Luna에 전달하는 변경 경로는 `현재 존재`와 `삭제됨`으로 구�
 ## 수동 확인
 
 ```sh
-python3 scripts/harness.py verify
+uv run --frozen python scripts/harness.py verify
 ```
 
 이 명령은 Ruff, docstring 존재·따옴표 형식, pytest를 확인합니다. Luna 검토는 파일을 변경한 Codex 턴의 종료 훅에서 실행됩니다.
@@ -64,7 +64,7 @@ codex exec --ephemeral --json -C "$PWD" -m gpt-5.6-luna -s workspace-write \
 두 턴의 정상 종료와 통과 지문을 확인합니다. 생성 턴의 지문에는 임시 파일이 포함되어야 하고, 삭제 턴의 지문은 현재 프로젝트 파일과 일치해야 합니다. 아래 확인이 모두 통과할 때만 테스트 로그와 세션 상태를 지웁니다. 실패하면 로그와 상태를 보존하고 원인을 확인합니다.
 
 ```sh
-python3 - <<'PY'
+uv run --frozen python - <<'PY'
 import hashlib
 import json
 import runpy
