@@ -9,6 +9,9 @@ import sys
 import time
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+
 ROOT = Path(__file__).resolve().parent.parent
 STATE_DIR = ROOT / ".harness-state"
 STOP_BUDGET_SECONDS = 285
@@ -73,6 +76,9 @@ def run_command(
             cwd=ROOT,
             input=input_text,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONUTF8": "1"},
             capture_output=True,
             timeout=timeout,
             check=False,
@@ -86,7 +92,9 @@ def missing_docstrings(paths: list[str]) -> list[str]:
     issues = []
     for relative in paths:
         try:
-            tree = ast.parse((ROOT / relative).read_text(), filename=relative)
+            tree = ast.parse(
+                (ROOT / relative).read_text(encoding="utf-8"), filename=relative
+            )
         except (OSError, SyntaxError) as error:
             issues.append(f"{relative}: 구문 검사 실패: {error}")
             continue
@@ -102,22 +110,27 @@ def missing_docstrings(paths: list[str]) -> list[str]:
 def apply_safe_fixes(changed: list[str], deadline: float | None = None) -> list[str]:
     """main이 검증 지문을 잡기 전에 변경된 Python 파일을 안전하게 수정합니다."""
     issues = []
-    ruff = ROOT / ".venv" / "bin" / "ruff"
     modified_python = [
         path for path in changed if path.endswith(".py") and (ROOT / path).is_file()
     ]
     if modified_python:
-        if not ruff.is_file():
-            return [".venv에 Ruff가 없습니다. requirements-dev.txt를 설치하세요."]
         fix = run_command(
-            [str(ruff), "check", "--fix", "--no-unsafe-fixes", *modified_python],
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                "check",
+                "--fix",
+                "--no-unsafe-fixes",
+                *modified_python,
+            ],
             timeout=RUFF_TIMEOUT_SECONDS,
             deadline=deadline,
         )
         if fix.returncode:
             issues.append(f"Ruff 안전 수정 실패:\n{fix.stdout}{fix.stderr}".strip())
         formatted = run_command(
-            [str(ruff), "format", *modified_python],
+            [sys.executable, "-m", "ruff", "format", *modified_python],
             timeout=RUFF_TIMEOUT_SECONDS,
             deadline=deadline,
         )
@@ -131,22 +144,17 @@ def apply_safe_fixes(changed: list[str], deadline: float | None = None) -> list[
 def check_project(all_paths: list[str], deadline: float | None = None) -> list[str]:
     """apply_safe_fixes 뒤 고정한 파일 상태에 Ruff와 pytest 검사를 실행합니다."""
     issues = []
-    ruff = ROOT / ".venv" / "bin" / "ruff"
-    pytest = ROOT / ".venv" / "bin" / "pytest"
-    if not ruff.is_file() or not pytest.is_file():
-        return [".venv에 Ruff와 pytest가 없습니다. requirements-dev.txt를 설치하세요."]
-
     all_python = [
         path for path in all_paths if path.endswith(".py") and (ROOT / path).is_file()
     ]
     if all_python:
         lint = run_command(
-            [str(ruff), "check", *all_python],
+            [sys.executable, "-m", "ruff", "check", *all_python],
             timeout=RUFF_TIMEOUT_SECONDS,
             deadline=deadline,
         )
         format_check = run_command(
-            [str(ruff), "format", "--check", *all_python],
+            [sys.executable, "-m", "ruff", "format", "--check", *all_python],
             timeout=RUFF_TIMEOUT_SECONDS,
             deadline=deadline,
         )
@@ -159,7 +167,9 @@ def check_project(all_paths: list[str], deadline: float | None = None) -> list[s
             )
 
     tests = run_command(
-        [str(pytest), "-q"], timeout=PYTEST_TIMEOUT_SECONDS, deadline=deadline
+        [sys.executable, "-m", "pytest", "-q"],
+        timeout=PYTEST_TIMEOUT_SECONDS,
+        deadline=deadline,
     )
     if tests.returncode:
         issues.append(f"pytest 실패:\n{tests.stdout}{tests.stderr}".strip())
@@ -170,6 +180,11 @@ def review_project(
     changed: list[str], turn_id: str, deadline: float | None = None
 ) -> list[str]:
     """자동 검사가 통과한 변경을 별도 읽기 전용 Luna에게 의미 검토시킵니다."""
+    codex_command = json.loads(os.environ.get("CODEX_COMMAND", '["codex"]'))
+    if not isinstance(codex_command, list) or not all(
+        isinstance(part, str) for part in codex_command
+    ):
+        return ["CODEX_COMMAND는 문자열 JSON 배열이어야 합니다."]
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     output = STATE_DIR / f"{hashlib.sha256(turn_id.encode()).hexdigest()}.review.json"
     output.unlink(missing_ok=True)
@@ -198,7 +213,7 @@ def review_project(
     )
     result = run_command(
         [
-            "codex",
+            *codex_command,
             "exec",
             "--ephemeral",
             "--disable",
@@ -225,7 +240,7 @@ def review_project(
         output.unlink(missing_ok=True)
         return [f"Luna 검토 실행 실패:\n{result.stderr}".strip()]
     try:
-        verdict = json.loads(output.read_text())
+        verdict = json.loads(output.read_text(encoding="utf-8"))
     except OSError, json.JSONDecodeError:
         return ["Luna 검토 결과를 읽을 수 없습니다."]
     finally:
@@ -276,7 +291,10 @@ def main() -> None:
         if action == "start":
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():
-                path.write_text(json.dumps(project_snapshot(ROOT), ensure_ascii=False))
+                path.write_text(
+                    json.dumps(project_snapshot(ROOT), ensure_ascii=False),
+                    encoding="utf-8",
+                )
             print(
                 json.dumps(
                     {
@@ -295,7 +313,7 @@ def main() -> None:
         if not path.is_file():
             raise FileNotFoundError("마지막 검증 통과 지문이 없습니다.")
 
-        before = json.loads(path.read_text())
+        before = json.loads(path.read_text(encoding="utf-8"))
         after = project_snapshot(ROOT)
         changed = changed_paths(before, after)
         if time.monotonic() >= deadline:
@@ -324,7 +342,9 @@ def main() -> None:
                     "검증 중 프로젝트 파일이 변경되었습니다. 재검증이 필요합니다."
                 )
             else:
-                path.write_text(json.dumps(candidate, ensure_ascii=False))
+                path.write_text(
+                    json.dumps(candidate, ensure_ascii=False), encoding="utf-8"
+                )
         response = hook_response(issues, event.get("stop_hook_active", False))
     except Exception as error:
         already_continued = (
