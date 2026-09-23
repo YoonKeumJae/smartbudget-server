@@ -3,7 +3,7 @@
   "info": {
     "title": "SmartBudget API 설계 명세",
     "version": "1.3.0",
-    "description": "인증·서버 버전·가계부·소비 분석·OCR에서 구현해야 할 API 계약의 단일 기준인 OpenAPI 3.1 문서입니다. 2026-09-23 현재 Python 서버는 공통 code 응답, 서버 버전 조회와 계정 PATCH·DELETE를 포함한 인증 API를 구현했습니다. 월별 예산 분리, 거래·리포트·OCR API는 아직 구현되지 않았습니다. 구현이 완료될 때까지 실행 중 서버의 /docs와 /openapi.json은 현재 구현 상태를 보여주고, 이 파일은 목표 계약을 나타냅니다.\n\n날짜·일시 형식 규칙: 달력 날짜는 ISO 8601 YYYY-MM-DD, 정확한 시점은 한국 시간 오프셋을 포함한 YYYY-MM-DDTHH:mm:ss+09:00을 사용합니다. 거래 시각처럼 날짜와 분리된 선택 시각은 HH:mm:ss 또는 null을 사용합니다."
+    "description": "인증·서버 버전·가계부·소비 분석·OCR에서 구현해야 할 API 계약의 단일 기준인 OpenAPI 3.1 문서입니다. 2026-09-24 현재 Python 서버는 공통 code 응답, 서버 버전 조회와 계정 PATCH·DELETE를 포함한 인증 API를 구현했습니다. 월별 예산 분리, 거래·리포트·OCR API는 아직 구현되지 않았습니다. 구현이 완료될 때까지 실행 중 서버의 /docs와 /openapi.json은 현재 구현 상태를 보여주고, 이 파일은 목표 계약을 나타냅니다.\n\n날짜·일시 형식 규칙: 달력 날짜는 ISO 8601 YYYY-MM-DD, 정확한 시점은 한국 시간 오프셋을 포함한 YYYY-MM-DDTHH:mm:ss+09:00을 사용합니다. 거래 시각처럼 날짜와 분리된 선택 시각은 HH:mm:ss 또는 null을 사용합니다."
   },
   "paths": {
     "/api/v1/version": {
@@ -1513,7 +1513,7 @@
         ],
         "summary": "본인 계정 삭제",
         "operationId": "delete_api_v1_auth_account",
-        "description": "Authorization: Bearer <JWT>로 인증한 본인의 User와 같은 username의 LoginAttempt를 한 쓰기 트랜잭션에서 삭제합니다. 거래·월별 예산·소비 분석 리포트 모델은 아직 없으므로, 해당 사용자 소유 모델을 구현할 때 계정 삭제 트랜잭션과 통합 테스트에 함께 포함해야 합니다. 삭제가 완료되면 기존 JWT는 더 이상 사용할 수 없습니다. query와 요청 본문은 허용하지 않습니다.",
+        "description": "Authorization: Bearer <JWT>로 인증한 본인의 User와 같은 username의 LoginAttempt를 한 쓰기 트랜잭션에서 삭제합니다. 거래·월별 예산·소비 분석 리포트 모델과 라우트 스텁은 등록됐지만 실제 기능과 계정 삭제 연동은 아직 구현되지 않았습니다. 각 기능 로직을 구현할 때 사용자 소유 행의 삭제 정책과 계정 삭제 통합 테스트를 함께 추가해야 합니다. 삭제가 완료되면 기존 JWT는 더 이상 사용할 수 없습니다. query와 요청 본문은 허용하지 않습니다.",
         "responses": {
           "200": {
             "description": "계정 삭제가 완료되었습니다.",
@@ -1726,14 +1726,14 @@
         ]
       }
     },
-    "/api/v1/reports": {
+    "/api/v1/report": {
       "get": {
         "tags": [
           "소비 분석"
         ],
         "summary": "분석 조회",
-        "operationId": "get_api_v1_reports",
-        "description": "- 현재 사용자의 저장된 소비 분석 리포트를 조회하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 조회 조건은 query로 전달하며 요청 본문은 사용하지 않습니다.\n\n리포트 종류는 daily, weekly, monthly, yearly입니다. period_start와 period_end는 한국 시간(Asia/Seoul) 기준으로 양끝을 포함합니다. weekly는 월요일부터 일요일, monthly는 매월 1일부터 말일, yearly는 1월 1일부터 12월 31일까지입니다.\n\nperiod_type과 period_start를 모두 생략하면 전체 리포트를 반환합니다. 특정 리포트를 조회하려면 두 값을 함께 전달해야 하며, 하나만 전달하면 오류 코드 400을 반환합니다. 사용자·period_type·period_start 조합마다 리포트는 하나만 저장됩니다.\n\n거래 추가·수정·삭제로 저장된 분석이 현재 거래와 달라질 수 있으면 is_stale은 true입니다. stale 리포트도 조회되며 POST /api/v1/reports로 재생성하면 같은 id의 내용을 덮어쓰고 is_stale을 false로 바꿉니다. 거래 변경 과정에서는 외부 LLM을 호출하지 않습니다.\n\n리포트가 없으면 data.items는 빈 배열 []입니다. generated_at 내림차순, 같으면 id 내림차순으로 정렬하며 limit과 cursor를 사용하는 커서 페이지 방식으로 반환합니다. 목록에는 full_report를 포함하지 않으며 상세 조회에서 반환합니다. 정의되지 않은 query 필드를 전달하거나 GET 요청에 본문을 포함하면 오류 코드 400을 반환합니다.",
+        "operationId": "get_api_v1_report",
+        "description": "- 현재 사용자의 저장된 소비 분석 리포트를 조회하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 조회 조건은 query로 전달하며 요청 본문은 사용하지 않습니다.\n\n리포트 종류는 daily, weekly, monthly, yearly입니다. period_start와 period_end는 한국 시간(Asia/Seoul) 기준으로 양끝을 포함합니다. weekly는 월요일부터 일요일, monthly는 매월 1일부터 말일, yearly는 1월 1일부터 12월 31일까지입니다.\n\nperiod_type과 period_start를 모두 생략하면 전체 리포트를 반환합니다. 특정 리포트를 조회하려면 두 값을 함께 전달해야 하며, 하나만 전달하면 오류 코드 400을 반환합니다. 사용자·period_type·period_start 조합마다 리포트는 하나만 저장됩니다.\n\n거래 추가·수정·삭제로 저장된 분석이 현재 거래와 달라질 수 있으면 is_stale은 true입니다. stale 리포트도 조회되며 POST /api/v1/report로 재생성하면 같은 id의 내용을 덮어쓰고 is_stale을 false로 바꿉니다. 거래 변경 과정에서는 외부 LLM을 호출하지 않습니다.\n\n리포트가 없으면 data.items는 빈 배열 []입니다. generated_at 내림차순, 같으면 id 내림차순으로 정렬하며 limit과 cursor를 사용하는 커서 페이지 방식으로 반환합니다. 목록에는 full_report를 포함하지 않으며 상세 조회에서 반환합니다. 정의되지 않은 query 필드를 전달하거나 GET 요청에 본문을 포함하면 오류 코드 400을 반환합니다.",
         "parameters": [
           {
             "name": "period_type",
@@ -2087,7 +2087,7 @@
           "소비 분석"
         ],
         "summary": "분석 요청",
-        "operationId": "post_api_v1_reports",
+        "operationId": "post_api_v1_report",
         "description": "- 일간·주간·월간·연간 소비 분석 리포트를 생성하거나 재생성하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n- 백엔드는 분석 기간의 거래를 집계하고 식별 가능한 정보를 제거한 뒤 외부 LLM에 소비 분석을 요청합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. period_type과 period_start는 JSON 본문으로만 전달합니다.\n\n기간은 한국 시간(Asia/Seoul) 기준입니다. daily는 period_start 하루, weekly는 period_start인 월요일부터 일요일, monthly는 period_start인 매월 1일부터 말일, yearly는 period_start인 1월 1일부터 12월 31일까지이며 서버가 period_end를 계산합니다. 현재 또는 과거 기간은 생성·재생성할 수 있습니다. 아직 시작하지 않은 미래 기간의 분석을 요청하면 오류 코드 400을 반환합니다.\n\n사용자·period_type·period_start 조합마다 리포트는 하나만 저장됩니다. 처음 생성하거나 기존 리포트를 재생성할 때 모두 HTTP 200을 반환합니다. 재생성은 기존 id를 유지한 채 full_report와 generated_at을 갱신하고 is_stale을 false로 바꿉니다.\n\n지정한 기간에 거래가 하나도 없으면 외부 LLM을 호출하지 않고 오류 코드 400과 message \"No transactions were found for the requested period.\"를 반환하며 리포트를 저장하거나 변경하지 않습니다. 외부 LLM 호출이 실패하면 오류 코드 502를 반환하고, 호출 시작부터 전체 응답 완료까지 60초를 초과하면 오류 코드 504를 반환합니다. 자동 재시도하지 않으며 실패하면 기존 리포트도 변경하지 않습니다.\n\n자동 생성은 공개 API가 아닌 내부 예약 작업이 같은 생성·갱신 규칙을 사용합니다. 매일 00:00에는 전날의 daily, 매주 월요일 00:00에는 직전 월요일부터 일요일의 weekly, 매월 1일 00:00에는 직전 달의 monthly, 매년 1월 1일 00:00에는 직전 연도의 yearly 리포트를 생성합니다. 모두 Asia/Seoul 기준이며 해당 기간에 거래가 없는 사용자는 건너뜁니다.\n\n거래 추가·수정·삭제는 해당 날짜를 포함하는 기존 daily·weekly·monthly·yearly 리포트의 is_stale을 true로 표시할 뿐 외부 LLM을 호출하지 않습니다. 거래 날짜가 바뀌면 변경 전·후 날짜가 속한 기존 리포트를 모두 stale로 표시합니다.\n\n분석은 수입·지출을 모두 집계하며 지출이 없으면 그 사실을 명시합니다. LLM에는 기간·종류·카테고리별 건수와 합계만 전달하고 사용자 ID·상호·메모·개별 거래 원문은 보내지 않습니다. 정의되지 않은 query 또는 본문 필드를 전달하면 오류 코드 400을 반환합니다.\n\nIdempotency-Key는 선택이며 1~128자의 영문·숫자·점·밑줄·콜론·하이픈을 허용합니다. 성공 응답은 인증 사용자·작업·키 기준으로 24시간 보관합니다. 같은 키와 같은 요청의 완료 후 재시도에는 최초 성공 상태와 본문을 반환합니다. 같은 키로 다른 요청을 보내면 IDEMPOTENCY_KEY_CONFLICT, 최초 요청이 처리 중이면 IDEMPOTENCY_REQUEST_IN_PROGRESS 오류 코드와 HTTP 409를 반환하며 작업을 중복 실행하지 않습니다. 실패 응답은 보관하지 않으며 24시간이 지나면 같은 키를 새 요청으로 처리할 수 있습니다.\n\n같은 사용자·period_type·period_start의 생성 작업은 한 번에 하나만 실행합니다. Idempotency-Key가 다른 요청이나 키가 없는 요청이 같은 기간의 처리 중 작업과 겹치면 REPORT_GENERATION_IN_PROGRESS 오류 코드와 HTTP 409를 반환하며 LLM을 다시 호출하지 않습니다. 자동 생성 작업도 같은 잠금을 사용합니다. 실행이 끝난 뒤의 POST는 기존 규칙대로 재생성합니다.",
         "responses": {
           "200": {
@@ -2624,13 +2624,13 @@
         ]
       }
     },
-    "/api/v1/reports/{id}": {
+    "/api/v1/report/{id}": {
       "delete": {
         "tags": [
           "소비 분석"
         ],
         "summary": "분석 삭제",
-        "operationId": "delete_api_v1_reports_id",
+        "operationId": "delete_api_v1_report_id",
         "description": "- 기존 소비 분석 리포트를 DB에서 제거하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 조회 조건은 query, 대상 ID는 경로로 전달하며 요청 본문은 사용하지 않습니다.\n\n요청자의 소유 항목만 대상으로 합니다. 지정한 ID의 항목이 없거나 다른 사용자 소유이면 동일한 오류 코드 404를 반환하며, 다른 사용자 항목의 존재 여부를 구분하여 알리지 않습니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.",
         "parameters": [
           {
@@ -2913,7 +2913,7 @@
           "소비 분석"
         ],
         "summary": "분석 상세 조회",
-        "operationId": "get_api_v1_reports_id",
+        "operationId": "get_api_v1_report_id",
         "description": "Authorization: Bearer <JWT>로 인증한 사용자가 본인 소유 소비 분석 리포트 하나를 ID로 조회합니다. full_report를 포함한 전체 리포트를 반환합니다. 대상이 없거나 다른 사용자 소유이면 같은 오류 코드 404를 반환합니다. query와 요청 본문은 허용하지 않습니다.",
         "parameters": [
           {
@@ -3264,7 +3264,7 @@
         ],
         "summary": "OCR API 프록시",
         "operationId": "post_api_v1_proxy_ocr",
-        "description": "- 입력된 영수증 이미지를 바탕으로 OCR(광학 문자 인식) 작업을 수행, 영수증 내 지출 내역을 디지털 문자열로 가져옵니다. 출력 포맷은 JSON입니다.\n- 이 API는 Azure가 제공하는 OCR API를 대리 호출하는 프록시 API 역할을 수행합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다.\n\nfiles 필드로 영수증 파일을 1개 이상 10개 이하 첨부합니다. 각 파일은 JPEG, PNG, HEIC 또는 PDF이며 최대 크기는 10MB입니다. 결과는 입력 파일과 같은 순서로 반환합니다.\n\n파일별로 status(success 또는 failed)와 error_message를 반환합니다. 일부 파일이 실패해도 성공한 파일 결과는 유지하고 전체 응답은 HTTP 200입니다. 실패한 파일은 인식 결과를 null로, items를 빈 배열로 반환합니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.\n\n업로드 검증은 OCR 호출 전에 수행합니다. 누락·빈 파일·개수·형식·용량 오류가 하나라도 있으면 전체 요청을 거부하고 오류 코드 400을 반환합니다. 10MB는 10,000,000바이트이며 파일 내용과 형식을 확인합니다. 검증된 파일은 서로 독립적으로 처리합니다. 파일별 OCR 실패는 failed로 반환하고, 전부 실패해도 결과를 구성할 수 있으면 HTTP 200을 반환합니다. 파일별 결과를 구성할 수 없는 서버 내부 오류가 발생하면 오류 코드 500을 반환합니다. 응답 개수는 입력 파일 개수와 같으며 순서를 유지합니다. 각 파일은 하나의 영수증을 나타내며 여러 영수증이 검출된 파일은 failed로 반환합니다. 여러 페이지 PDF는 하나의 영수증으로 해석합니다. OCR 호출은 파일별 60초 제한이며 자동 재시도하지 않고, 시간 초과·외부 호출 실패·영수증 인식 불가는 해당 파일의 failed 결과입니다. 누락된 개별 필드는 null(items는 [])로 반환할 수 있습니다. 1원 이상의 원화 정수로 해석할 수 없는 총액은 null입니다. OCR은 거래를 자동 저장하지 않습니다. 사용자가 확인 후 POST /api/v1/transactions로 저장하며 type·category를 지정하며 source는 ocr로 설정합니다.\n\nIdempotency-Key는 선택이며 1~128자의 영문·숫자·점·밑줄·콜론·하이픈을 허용합니다. 성공 응답은 인증 사용자·작업·키 기준으로 24시간 보관합니다. 같은 키와 같은 요청의 완료 후 재시도에는 최초 성공 상태와 본문을 반환합니다. 같은 키로 다른 요청을 보내면 IDEMPOTENCY_KEY_CONFLICT, 최초 요청이 처리 중이면 IDEMPOTENCY_REQUEST_IN_PROGRESS 오류 코드와 HTTP 409를 반환하며 작업을 중복 실행하지 않습니다. 실패 응답은 보관하지 않으며 24시간이 지나면 같은 키를 새 요청으로 처리할 수 있습니다.",
+        "description": "- 입력된 영수증 이미지를 바탕으로 OCR(광학 문자 인식) 작업을 수행, 영수증 내 지출 내역을 디지털 문자열로 가져옵니다. 출력 포맷은 JSON입니다.\n- 이 API는 Azure가 제공하는 OCR API를 대리 호출하는 프록시 API 역할을 수행합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다.\n\nfiles 필드로 영수증 파일을 1개 이상 10개 이하 첨부합니다. 각 파일은 JPEG, PNG, HEIC 또는 PDF이며 최대 크기는 10MB입니다. 결과는 입력 파일과 같은 순서로 반환합니다.\n\n파일별로 status(success 또는 failed)와 error_message를 반환합니다. 일부 파일이 실패해도 성공한 파일 결과는 유지하고 전체 응답은 HTTP 200입니다. 실패한 파일은 인식 결과를 null로, items를 빈 배열로 반환합니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.\n\n업로드 검증은 OCR 호출 전에 수행합니다. 누락·빈 파일·개수·형식·용량 오류가 하나라도 있으면 전체 요청을 거부하고 오류 코드 400을 반환합니다. 10MB는 10,000,000바이트이며 파일 내용과 형식을 확인합니다. 검증된 파일은 서로 독립적으로 처리합니다. 파일별 OCR 실패는 failed로 반환하고, 전부 실패해도 결과를 구성할 수 있으면 HTTP 200을 반환합니다. 파일별 결과를 구성할 수 없는 서버 내부 오류가 발생하면 오류 코드 500을 반환합니다. 응답 개수는 입력 파일 개수와 같으며 순서를 유지합니다. 각 파일은 하나의 영수증을 나타내며 여러 영수증이 검출된 파일은 failed로 반환합니다. 여러 페이지 PDF는 하나의 영수증으로 해석합니다. OCR 호출은 파일별 60초 제한이며 자동 재시도하지 않고, 시간 초과·외부 호출 실패·영수증 인식 불가는 해당 파일의 failed 결과입니다. 누락된 개별 필드는 null(items는 [])로 반환할 수 있습니다. 1원 이상의 원화 정수로 해석할 수 없는 총액은 null입니다. OCR은 거래를 자동 저장하지 않습니다. 사용자가 확인 후 POST /api/v1/transaction로 저장하며 type·category를 지정하며 source는 ocr로 설정합니다.\n\nIdempotency-Key는 선택이며 1~128자의 영문·숫자·점·밑줄·콜론·하이픈을 허용합니다. 성공 응답은 인증 사용자·작업·키 기준으로 24시간 보관합니다. 같은 키와 같은 요청의 완료 후 재시도에는 최초 성공 상태와 본문을 반환합니다. 같은 키로 다른 요청을 보내면 IDEMPOTENCY_KEY_CONFLICT, 최초 요청이 처리 중이면 IDEMPOTENCY_REQUEST_IN_PROGRESS 오류 코드와 HTTP 409를 반환하며 작업을 중복 실행하지 않습니다. 실패 응답은 보관하지 않으며 24시간이 지나면 같은 키를 새 요청으로 처리할 수 있습니다.",
         "responses": {
           "200": {
             "description": "정상 처리됨.",
@@ -3759,13 +3759,13 @@
         ]
       }
     },
-    "/api/v1/transactions": {
+    "/api/v1/transaction": {
       "get": {
         "tags": [
           "거래"
         ],
         "summary": "거래 목록 조회",
-        "operationId": "get_api_v1_transactions",
+        "operationId": "get_api_v1_transaction",
         "description": "- 인증된 사용자의 거래을 출력합니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 조회 조건은 query, 대상 ID는 경로로 전달하며 요청 본문은 사용하지 않습니다.\n\ncategory는 고정 목록을 사용하며 expense에는 지출 카테고리, income에는 수입 카테고리만 허용합니다.\n\n기간은 한국 시간(Asia/Seoul) 기준으로 시작일과 종료일을 모두 포함합니다. start_date <= 거래 date <= end_date인 거래가 대상입니다. 예를 들어 2026-09-01부터 2026-09-30까지 요청하면 9월 30일 거래도 포함합니다. 시작일과 종료일이 같으면 해당 하루의 거래를 대상으로 합니다.\n\n조회 기간 생략 규칙:\n- start_date와 end_date를 모두 생략하면 인증된 사용자의 전체 거래를 조회합니다.\n- start_date만 지정하면 거래 date >= start_date인 거래를 조회하며 종료 날짜 제한은 없습니다.\n- end_date만 지정하면 거래 date <= end_date인 거래를 조회하며 시작 날짜 제한은 없습니다.\n- 둘 다 지정하면 start_date <= 거래 date <= end_date인 거래를 조회합니다.\n- 두 날짜를 지정했을 때 start_date > end_date이면 오류 코드 400을 반환합니다.\n\n조회 결과는 거래 date 내림차순, 같은 날짜에서는 time 내림차순으로 반환합니다. 최신 날짜의 가장 늦은 거래 시각부터 표시합니다. 시각이 없는 거래(time=null)는 같은 날짜에서 시각이 있는 모든 거래 뒤에 배치합니다.\n\n각 거래는 id, date, time, type, source, category, amount를 항상 반환합니다. 이 필드 중 time만 null을 허용합니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.\n\n조회 대상이 없으면 200과 data: []를 반환합니다. date와 time이 같거나 둘 다 time이 null이면 id 내림차순으로 정렬합니다. store_name과 note도 항상 반환하며 미설정이면 null입니다. limit과 cursor를 사용하는 커서 페이지 방식으로 반환합니다. next_cursor가 null이면 마지막 페이지입니다.",
         "parameters": [
           {
@@ -4208,7 +4208,7 @@
           "거래"
         ],
         "summary": "거래 생성",
-        "operationId": "post_api_v1_transactions",
+        "operationId": "post_api_v1_transaction",
         "description": "- 새로운 거래을 추가하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 추가·수정 데이터는 JSON 본문으로만 전달합니다.\n\ncategory는 고정 목록을 사용하며 expense에는 지출 카테고리, income에는 수입 카테고리만 허용합니다.\n\n출처와 관계없이 거래 date는 필수이고 time은 선택입니다. time을 생략하거나 null을 전달하면 시각 없이 저장합니다. 모르는 시각을 00:00:00으로 채우지 않습니다.\n\n거래를 저장하면 해당 date를 포함하는 기존 일간·주간·월간·연간 리포트의 is_stale을 true로 표시합니다. 이 과정에서 외부 LLM을 호출하지 않습니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.\n\nIdempotency-Key는 선택이며 1~128자의 영문·숫자·점·밑줄·콜론·하이픈을 허용합니다. 성공 응답은 인증 사용자·작업·키 기준으로 24시간 보관합니다. 같은 키와 같은 요청의 완료 후 재시도에는 최초 성공 상태와 본문을 반환합니다. 같은 키로 다른 요청을 보내면 IDEMPOTENCY_KEY_CONFLICT, 최초 요청이 처리 중이면 IDEMPOTENCY_REQUEST_IN_PROGRESS 오류 코드와 HTTP 409를 반환하며 작업을 중복 실행하지 않습니다. 실패 응답은 보관하지 않으며 24시간이 지나면 같은 키를 새 요청으로 처리할 수 있습니다.",
         "responses": {
           "201": {
@@ -4762,13 +4762,13 @@
         ]
       }
     },
-    "/api/v1/transactions/{id}": {
+    "/api/v1/transaction/{id}": {
       "delete": {
         "tags": [
           "거래"
         ],
         "summary": "거래 삭제",
-        "operationId": "delete_api_v1_transactions_id",
+        "operationId": "delete_api_v1_transaction_id",
         "description": "- 기존 거래을 DB에서 제거하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 조회 조건은 query, 대상 ID는 경로로 전달하며 요청 본문은 사용하지 않습니다.\n\n삭제하면 삭제 전 date를 포함하는 기존 일간·주간·월간·연간 리포트의 is_stale을 true로 표시합니다. 이 과정에서 외부 LLM을 호출하지 않습니다.\n\n요청자의 소유 항목만 대상으로 합니다. 지정한 ID의 항목이 없거나 다른 사용자 소유이면 동일한 오류 코드 404를 반환하며, 다른 사용자 항목의 존재 여부를 구분하여 알리지 않습니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.",
         "parameters": [
           {
@@ -5051,7 +5051,7 @@
           "거래"
         ],
         "summary": "거래 수정",
-        "operationId": "patch_api_v1_transactions_id",
+        "operationId": "patch_api_v1_transaction_id",
         "description": "- 기존 거래의 데이터를 수정하는 API입니다. 출력 포맷은 JSON입니다.\n- 사용자 ID는 첨부된 JWT 페이로드 정보로 확인합니다.\n- type은 expense 또는 income으로 수정할 수 있으며, 생략하면 기존 값을 유지합니다. 금액은 종류와 관계없이 양수로 유지합니다.\n- source는 항목이 처음 들어온 경로이므로 변경할 수 없습니다. 원래 값과 같거나 null이어도 요청 본문에 source를 포함하면 오류 코드 400을 반환합니다.\n\nJWT는 Authorization: Bearer <JWT> 헤더로 전달합니다. query나 본문의 token으로 대체하지 않습니다. 추가·수정 데이터는 JSON 본문으로만 전달합니다.\n\ncategory는 고정 목록을 사용합니다. type을 전달할 때는 해당 종류에 맞는 category도 함께 전달해야 합니다. type을 생략하고 category만 수정하면 저장된 기존 종류에 맞는 카테고리인지 확인합니다. 종류와 맞지 않는 카테고리를 전달하거나 type만 전달하면 오류 코드 400을 반환합니다.\n\n수정할 필드를 하나 이상 전달해야 하며 빈 JSON 객체 {}를 전달하면 오류 코드 400을 반환합니다. 정의되지 않은 필드를 전달해도 오류 코드 400을 반환합니다. 생략한 필드는 기존 값을 유지합니다. store_name과 note는 null을 전달하면 값을 삭제합니다.\n\n수정하면 거래의 변경 전 date와 변경 후 date를 포함하는 기존 일간·주간·월간·연간 리포트의 is_stale을 true로 표시합니다. 날짜가 바뀌지 않아도 해당 날짜의 기존 리포트를 stale로 표시하며 외부 LLM은 호출하지 않습니다.\n\n요청자의 소유 항목만 대상으로 합니다. 지정한 ID의 항목이 없거나 다른 사용자 소유이면 동일한 오류 코드 404를 반환하며, 다른 사용자 항목의 존재 여부를 구분하여 알리지 않습니다.\n\n정의되지 않은 query 또는 본문 필드를 전달하거나 GET·DELETE 요청에 본문을 포함하면 오류 코드 400을 반환합니다. 숫자 필드는 문자열·불리언으로 대체할 수 없습니다.",
         "parameters": [
           {
@@ -5599,7 +5599,7 @@
           "거래"
         ],
         "summary": "거래 상세 조회",
-        "operationId": "get_api_v1_transactions_id",
+        "operationId": "get_api_v1_transaction_id",
         "description": "Authorization: Bearer <JWT>로 인증한 사용자가 본인 소유 거래 하나를 ID로 조회합니다. 대상이 없거나 다른 사용자 소유이면 같은 오류 코드 404를 반환합니다. query와 요청 본문은 허용하지 않습니다.",
         "parameters": [
           {
@@ -6025,13 +6025,13 @@
         ]
       }
     },
-    "/api/v1/monthly-budgets/{month}": {
+    "/api/v1/monthly-budget/{month}": {
       "get": {
         "tags": [
           "월별 예산"
         ],
         "summary": "월별 예산 조회",
-        "operationId": "get_api_v1_monthly_budgets_month",
+        "operationId": "get_api_v1_monthly_budget_month",
         "description": "Authorization: Bearer <JWT>로 인증한 사용자의 지정 연월 예산을 조회합니다. 저장된 예산이 없으면 amount:null을 반환합니다. query와 요청 본문은 허용하지 않습니다.",
         "parameters": [
           {
@@ -6288,7 +6288,7 @@
           "월별 예산"
         ],
         "summary": "월별 예산 저장",
-        "operationId": "put_api_v1_monthly_budgets_month",
+        "operationId": "put_api_v1_monthly_budget_month",
         "description": "Authorization: Bearer <JWT>로 인증한 사용자의 지정 연월 예산을 생성하거나 교체합니다. amount:null을 전달하면 해당 월의 예산을 미설정 상태로 바꿉니다. 성공하면 저장 결과를 반환합니다.",
         "parameters": [
           {

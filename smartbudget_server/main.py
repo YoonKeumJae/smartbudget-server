@@ -9,6 +9,10 @@ from smartbudget_server.auth.router import configure_auth
 from smartbudget_server.config import Settings
 from smartbudget_server.database import Base, build_engine
 from smartbudget_server.http import configure_http
+from smartbudget_server.monthly_budget.router import router as monthly_budget_router
+from smartbudget_server.proxy.router import router as proxy_router
+from smartbudget_server.report.router import router as report_router
+from smartbudget_server.transaction.router import router as transaction_router
 from smartbudget_server.version.router import configure_version
 from smartbudget_server.version.schemas import VersionData
 from smartbudget_server.version.service import load_version_data
@@ -39,13 +43,17 @@ def create_app(
     configure_http(app)
     configure_version(app)
     configure_auth(app)
+    app.include_router(transaction_router)
+    app.include_router(monthly_budget_router)
+    app.include_router(report_router)
+    app.include_router(proxy_router)
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.web_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
         expose_headers=["Retry-After"],
     )
 

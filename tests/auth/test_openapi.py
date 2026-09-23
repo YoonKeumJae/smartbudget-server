@@ -198,7 +198,7 @@ def test_official_patch_401_allows_only_paired_errors():
 
 
 def test_official_delete_account_description_matches_current_scope():
-    """공식 DELETE 설명이 현재 삭제 범위와 미래 모델 경계를 구분합니다."""
+    """공식 DELETE 설명이 현재 삭제 범위와 미구현 연동을 구분합니다."""
     target = json.loads(
         (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text(
             encoding="utf-8"
@@ -207,8 +207,9 @@ def test_official_delete_account_description_matches_current_scope():
     description = target["paths"][PREFIX + "/account"]["delete"]["description"]
     assert "User" in description
     assert "LoginAttempt" in description
-    assert "모델은 아직 없" in description
-    assert "구현할 때" in description
+    assert "모델과 라우트 스텁은 등록" in description
+    assert "계정 삭제 연동은 아직 구현되지 않았" in description
+    assert "기능 로직을 구현할 때" in description
     assert (
         "해당 사용자의 거래, 월별 예산, 소비 분석 리포트를 삭제합니다"
         not in description
