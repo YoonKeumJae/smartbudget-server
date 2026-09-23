@@ -1,0 +1,31 @@
+services:
+  smartbudget-server:
+    container_name: smartbudget-server
+    image: ghcr.io/yu-morph/smartbudget-server:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /app/data/accountbook.sqlite3
+      HOST: 0.0.0.0
+      PORT: 8000
+    volumes:
+      - ./data:/app/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    stop_grace_period: 30s
+
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: 300
+      WATCHTOWER_TIMEOUT: 30s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
