@@ -9,10 +9,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from accountbook.auth import security
-from accountbook.auth.models import LoginAttempt, User
-from accountbook.config import Settings
-from accountbook.database import read_session, write_session
+from smartbudget_server.auth import security
+from smartbudget_server.auth.models import LoginAttempt, User
+from smartbudget_server.config import Settings
+from smartbudget_server.database import read_session, write_session
 
 INVALID_LOGIN = "The username or password is incorrect."
 INVALID_TOKEN = "Authentication is required or the token is invalid."

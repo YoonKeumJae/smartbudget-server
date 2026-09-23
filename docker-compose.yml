@@ -14,7 +14,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_PATH: /app/data/accountbook.sqlite3
+      DATABASE_PATH: /app/data/smartbudget.sqlite3
       HOST: 0.0.0.0
       PORT: 8000
     volumes:

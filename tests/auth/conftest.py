@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from accountbook.config import Settings
-from accountbook.main import create_app
+from smartbudget_server.config import Settings
+from smartbudget_server.main import create_app
 
 
 @pytest.fixture

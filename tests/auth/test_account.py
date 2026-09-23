@@ -5,10 +5,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from accountbook.auth.models import LoginAttempt, User
-from accountbook.config import Settings
-from accountbook.database import read_session
-from accountbook.main import create_app
+from smartbudget_server.auth.models import LoginAttempt, User
+from smartbudget_server.config import Settings
+from smartbudget_server.database import read_session
+from smartbudget_server.main import create_app
 from tests.auth.helpers import (
     PREFIX,
     account,
@@ -117,8 +117,8 @@ def test_account_lifecycle(client):
         new,
         client.app.state.settings.jwt_secret.get_secret_value(),
         algorithms=["HS256"],
-        audience="accountbook-api",
-        issuer="accountbook",
+        audience="smartbudget-server-api",
+        issuer="smartbudget-server",
     )
     assert claims["exp"] - claims["iat"] == 432000
     assert account(client, first).status_code == 200
@@ -254,7 +254,7 @@ def test_restart_keeps_user_and_revocation(tmp_path):
 
 def test_invalid_token_does_not_hash_new_password(client, monkeypatch):
     """인증 실패한 수정 요청은 고비용 비밀번호 해시를 실행하지 않습니다."""
-    from accountbook.auth import security
+    from smartbudget_server.auth import security
 
     calls = []
     monkeypatch.setattr(security, "hash_password", lambda value: calls.append(value))

@@ -1,7 +1,7 @@
 [project]
 name = "smartbudget-server"
 version = "0.1.0"
-description = "FastAPI-based account book server"
+description = "A FastAPI-based SmartBudget API server"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [

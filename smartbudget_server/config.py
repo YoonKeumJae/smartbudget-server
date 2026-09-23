@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     )
 
     jwt_secret: SecretStr
-    jwt_issuer: str = Field(default="accountbook", min_length=1)
-    jwt_audience: str = Field(default="accountbook-api", min_length=1)
+    jwt_issuer: str = Field(default="smartbudget-server", min_length=1)
+    jwt_audience: str = Field(default="smartbudget-server-api", min_length=1)
     token_seconds: int = Field(default=432000, gt=0)
-    database_path: Path = Path("./data/accountbook.sqlite3")
+    database_path: Path = Path("./data/smartbudget.sqlite3")
     host: str = Field(default="127.0.0.1", min_length=1)
     port: int = Field(default=8000, ge=1, le=65535)
     web_origins: list[str] = Field(default_factory=list)

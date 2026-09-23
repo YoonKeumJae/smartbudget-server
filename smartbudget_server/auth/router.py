@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, FastAPI, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from accountbook.auth import security, service
-from accountbook.auth.schemas import (
+from smartbudget_server.auth import security, service
+from smartbudget_server.auth.schemas import (
     AccountData,
     AccountUpdate,
     AuthenticationRequiredEnvelope,
@@ -22,7 +22,7 @@ from accountbook.auth.schemas import (
     TokenData,
     UsernameConflictEnvelope,
 )
-from accountbook.http import INVALID_REQUEST, documented_response, respond
+from smartbudget_server.http import INVALID_REQUEST, documented_response, respond
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 bearer = HTTPBearer(
