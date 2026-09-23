@@ -2,25 +2,49 @@
 
 Python 3.14를 사용합니다. 구현해야 할 전체 API 계약은 [openapi.json](openapi.json)을 기준으로 합니다. 인증 세부 설명은 [authentication.md](authentication.md), 개발 검증은 [harness.md](harness.md)를 참고합니다.
 
+## 사전 준비
+본 프로젝트에서는 패키지 정합성을 유지하고, CI 안정성 및 venv 사용성을 유지하기 위해 uv 패키지 매니저를 사용합니다.
+시스템에 uv 패키지 매니저가 설치되지 않은 상태라면 터미널에 아래 명령을 입력하여 설치합니다.
+
+### Windows
+```sh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Linux, macOS
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 ## 로컬 실행
 
-프로젝트 루트에서 실행합니다.
+프로젝트 루트에서 다음 명령들을 실행합니다.
 
 ```sh
-python3 --version
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+uv python install 3.14
+uv sync --frozen
 cp .env.example .env
-.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-생성한 키를 로컬 `.env`의 JWT_SECRET에 넣은 다음 실행합니다. 런타임만 설치할 때는 requirements.txt를 사용합니다.
+`uv sync`는 기본적으로 개발 의존성 그룹까지 설치합니다. 생성한 키를 로컬 `.env`의 JWT_SECRET에 넣은 다음 실행합니다. 운영 환경처럼 런타임 의존성만 설치할 때는 `uv sync --frozen --no-dev`를 사용합니다. `uv.lock`은 재현 가능한 설치를 위해 커밋하며, 의존성을 변경한 뒤에는 `uv lock`으로 갱신합니다.
+
+아래 명령어들 중 하나를 사용하여 32글자의 랜덤 문자열을 생성합니다. 그리고 해당 문자열의 `.env` 파일의 `JWT_SECRET` 항목에 붙여넣습니다. 
 
 ```sh
-.venv/bin/python -m accountbook
+# Method 1(공통)
+uv run --frozen python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Method 2(Linux, macOS)
+openssl rand -base64 32
 ```
 
-기본 주소는 `http://127.0.0.1:8000`입니다. 실행 중 서버의 `/docs`와 `/openapi.json`은 현재 구현 상태를 보여주며, `docs/openapi.json`은 구현해야 할 목표 계약입니다. 설정 오류는 시작을 중단하며 임시 서명키로 실행하지 않습니다.
+초기 세팅이 완료되었다면 아래 명령을 입력하여 서버를 실행합니다.
+
+```sh
+uv run --frozen python -m accountbook
+```
+
+기본 주소는 `http://localhost:8000`입니다. 실행 중 서버의 `/docs`와 `/openapi.json`은 현재 구현 상태를 보여주며, `docs/openapi.json`은 구현해야 할 목표 계약입니다. 설정 오류는 시작을 중단하며 임시 서명키로 실행하지 않습니다.
 
 ## 환경 설정
 
@@ -28,12 +52,12 @@ cp .env.example .env
 
 | 변수 | 기본값 | 규칙 |
 | --- | --- | --- |
-| JWT_SECRET | 없음, 필수 | 최소 43자; secrets.token_urlsafe(32)로 무작위 생성 |
+| JWT_SECRET | 없음, 필수 | 최소 32자; secrets.token_urlsafe(32)로 무작위 생성 |
 | JWT_ISSUER | accountbook | 비어 있지 않은 발급자 |
 | JWT_AUDIENCE | accountbook-api | 비어 있지 않은 수신 대상 |
 | TOKEN_SECONDS | 432000 | 양의 정수 초; 기본 5일 |
 | DATABASE_PATH | ./data/accountbook.sqlite3 | SQLite 파일 경로 |
-| HOST | 127.0.0.1 | 비어 있지 않은 바인딩 주소 |
+| HOST | 0.0.0.0 | 비어 있지 않은 바인딩 주소 |
 | PORT | 8000 | 1–65535 정수 |
 | WEB_ORIGINS | [] | 정확한 HTTP/HTTPS origin의 JSON 배열 |
 
@@ -54,8 +78,8 @@ Uvicorn 자체의 동시 처리 제한 503은 인증 API의 JSON 봉투와 다�
 ## 검증
 
 ```sh
-.venv/bin/python -m pip check
-python3 scripts/harness.py verify
+uv sync --frozen
+uv run --frozen python scripts/harness.py verify
 ```
 
 수동 verify는 Ruff·docstring·pytest 검사입니다. 별도 Luna 검토와 지문 확인은 [종료 훅 절차](harness.md)에 따릅니다. 테스트는 임시 DB·테스트용 키를 사용하며 실제 사용자 데이터를 요구하지 않습니다.
