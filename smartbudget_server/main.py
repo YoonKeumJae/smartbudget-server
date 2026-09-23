@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from accountbook.auth.router import configure_auth
-from accountbook.config import Settings
-from accountbook.database import Base, build_engine
-from accountbook.http import configure_http
-from accountbook.version.router import configure_version
-from accountbook.version.schemas import VersionData
-from accountbook.version.service import load_version_data
+from smartbudget_server.auth.router import configure_auth
+from smartbudget_server.config import Settings
+from smartbudget_server.database import Base, build_engine
+from smartbudget_server.http import configure_http
+from smartbudget_server.version.router import configure_version
+from smartbudget_server.version.schemas import VersionData
+from smartbudget_server.version.service import load_version_data
 
 
 def create_app(
@@ -32,7 +32,7 @@ def create_app(
         finally:
             app.state.engine.dispose()
 
-    app = FastAPI(title="AccountBook API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="smartbudget-server API", version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.version_data = version_data
 

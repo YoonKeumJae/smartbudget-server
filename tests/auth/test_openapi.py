@@ -80,7 +80,9 @@ def test_live_openapi_exposes_exact_auth_response_contract(client):
     """라이브 문서가 인증 응답의 고정값과 필수 헤더를 정확히 공개합니다."""
     schema = client.get("/openapi.json").json()
     target = json.loads(
-        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text()
+        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text(
+            encoding="utf-8"
+        )
     )
 
     def resolve(value):
@@ -167,7 +169,9 @@ def test_openapi_token_expiration_contract(client):
 def test_official_patch_401_allows_only_paired_errors():
     """공식 PATCH 401 계약이 실제 오류 두 쌍만 허용하도록 제한합니다."""
     target = json.loads(
-        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text()
+        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text(
+            encoding="utf-8"
+        )
     )
     response = target["paths"][PREFIX + "/account"]["patch"]["responses"]["401"][
         "content"
@@ -196,7 +200,9 @@ def test_official_patch_401_allows_only_paired_errors():
 def test_official_delete_account_description_matches_current_scope():
     """공식 DELETE 설명이 현재 삭제 범위와 미래 모델 경계를 구분합니다."""
     target = json.loads(
-        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text()
+        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text(
+            encoding="utf-8"
+        )
     )
     description = target["paths"][PREFIX + "/account"]["delete"]["description"]
     assert "User" in description
@@ -213,7 +219,9 @@ def test_official_delete_account_description_matches_current_scope():
 def test_openapi_credentials_match_official_input_contract(client, endpoint):
     """가입·로그인 공개 필드 제약이 공식 OpenAPI 입력 계약과 일치합니다."""
     target = json.loads(
-        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text()
+        (Path(__file__).resolve().parents[2] / "docs/openapi.json").read_text(
+            encoding="utf-8"
+        )
     )
     live = client.get("/openapi.json").json()
     operation = PREFIX + "/" + endpoint

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import jwt
 import pytest
 
-from accountbook.auth.security import (
+from smartbudget_server.auth.security import (
     decode_token,
     hash_password,
     issue_token,
@@ -16,7 +16,7 @@ from accountbook.auth.security import (
     validate_password,
     verify_password,
 )
-from accountbook.config import Settings
+from smartbudget_server.config import Settings
 
 
 def test_input_policy():

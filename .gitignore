@@ -221,7 +221,7 @@ __marimo__/
 
 .harness-state/
 
-# AccountBook settings and private database files
+# smartbudget-server settings and private database files
 .env.*
 !.env.example
 data/

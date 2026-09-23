@@ -15,7 +15,7 @@
 - 클래스: `PascalCase` 또는 `CapWords` (`UserProfile`)
 - 상수: `SNAKE_CASE` (`MAX_LIMIT`)
 - 모듈: 짧은 소문자 이름, 필요하면 언더스코어 사용 (`account_entry`)
-- 패키지: 언더스코어 없는 짧은 소문자 이름 권장 (`accountbook`)
+- 패키지: 짧은 소문자 이름을 권장하며 여러 단어에는 언더스코어를 사용 (`smartbudget_server`)
 - 내부용·비공개 멤버: 앞에 언더스코어 하나 사용 (`_internal_value`, `_private_method`)
 
 ## 들여쓰기와 공백

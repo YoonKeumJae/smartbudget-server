@@ -3,7 +3,7 @@
 from sqlalchemy import JSON, Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from accountbook.database import Base
+from smartbudget_server.database import Base
 
 
 class User(Base):

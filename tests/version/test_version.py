@@ -6,10 +6,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from accountbook.config import Settings
-from accountbook.main import create_app
-from accountbook.version.schemas import BuildChannel, VersionData
-from accountbook.version.service import load_version_data
+from smartbudget_server.config import Settings
+from smartbudget_server.main import create_app
+from smartbudget_server.version.schemas import BuildChannel, VersionData
+from smartbudget_server.version.service import load_version_data
 
 ENDPOINT = "/api/v1/version"
 TEST_TIMESTAMP = datetime.fromisoformat("2026-09-23T21:30:00+09:00")

@@ -41,7 +41,7 @@ openssl rand -base64 32
 초기 세팅이 완료되었다면 아래 명령을 입력하여 서버를 실행합니다.
 
 ```sh
-uv run --frozen python -m accountbook
+uv run --frozen python -m smartbudget_server
 ```
 
 기본 주소는 `http://localhost:8000`입니다. 실행 중 서버의 `/docs`와 `/openapi.json`은 현재 구현 상태를 보여주며, `docs/openapi.json`은 구현해야 할 목표 계약입니다. 설정 오류는 시작을 중단하며 임시 서명키로 실행하지 않습니다.
@@ -64,7 +64,7 @@ $env:BUILD_TIMESTAMP = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:s
 docker compose up -d --build
 ```
 
-API는 지정된 포트로 공개되고 SQLite 파일은 호스트 경로 기준 `./data/accountbook.sqlite3`에 보존됩니다. `docker compose down`은 이 볼륨을 삭제하지 않으며, 데이터를 함께 삭제하려는 경우에만 `docker compose down --volumes`를 사용합니다.
+API는 지정된 포트로 공개되고 SQLite 파일은 호스트 경로 기준 `./data/smartbudget.sqlite3`에 보존됩니다. `docker compose down`은 이 볼륨을 삭제하지 않으며, 데이터를 함께 삭제하려는 경우에만 `docker compose down --volumes`를 사용합니다.
 
 원격 저장소의 이미지를 기반으로 컨테이너를 실행하려면 다음 명령을 사용합니다.
 
@@ -113,10 +113,10 @@ docker compose down
 | 변수 | 기본값 | 규칙 |
 | --- | --- | --- |
 | JWT_SECRET | 없음, 필수 | 최소 43자; secrets.token_urlsafe(32)로 무작위 생성 |
-| JWT_ISSUER | accountbook | 비어 있지 않은 발급자 |
-| JWT_AUDIENCE | accountbook-api | 비어 있지 않은 수신 대상 |
+| JWT_ISSUER | smartbudget-server | 비어 있지 않은 발급자 |
+| JWT_AUDIENCE | smartbudget-server-api | 비어 있지 않은 수신 대상 |
 | TOKEN_SECONDS | 432000 | 양의 정수 초; 기본 5일 |
-| DATABASE_PATH | ./data/accountbook.sqlite3 | SQLite 파일 경로 |
+| DATABASE_PATH | ./data/smartbudget.sqlite3 | SQLite 파일 경로 |
 | HOST | 127.0.0.1 | 비어 있지 않은 바인딩 주소; 공유 `.env.example`과 컨테이너는 0.0.0.0 사용 |
 | PORT | 8000 | 1–65535 정수 |
 | WEB_ORIGINS | [] | 정확한 HTTP/HTTPS origin의 JSON 배열 |
@@ -140,6 +140,7 @@ Uvicorn 자체의 동시 처리 제한 503은 인증 API의 JSON 봉투와 다�
 ```sh
 uv sync --frozen
 uv run --frozen python scripts/harness.py verify
+uv run pytest
 ```
 
 수동 verify는 Ruff·docstring·pytest 검사입니다. 별도 Luna 검토와 지문 확인은 [종료 훅 절차](harness.md)에 따릅니다. 테스트는 임시 DB·테스트용 키를 사용하며 실제 사용자 데이터를 요구하지 않습니다.
@@ -147,7 +148,7 @@ uv run --frozen python scripts/harness.py verify
 ## 소스 구조와 기능 추가
 
 ```text
-accountbook/
+smartbudget_server/
 ├── __main__.py       # 서버 실행
 ├── main.py           # 앱 조립·라우터 등록·DB 수명주기
 ├── config.py         # 환경 설정

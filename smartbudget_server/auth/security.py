@@ -11,7 +11,7 @@ import jwt
 from pwdlib import PasswordHash
 from pwdlib.exceptions import UnknownHashError
 
-from accountbook.config import Settings
+from smartbudget_server.config import Settings
 
 _PASSWORD_HASH = PasswordHash.recommended()
 _HASH_SLOT = BoundedSemaphore(1)

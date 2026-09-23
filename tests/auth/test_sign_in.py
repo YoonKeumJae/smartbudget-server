@@ -10,7 +10,7 @@ from tests.auth.helpers import PREFIX, account, signin, signup
 
 def test_login_block_does_not_extend(client, monkeypatch):
     """대소문자 공유 실패 집계와 정확한 차단 종료 시각을 검사합니다."""
-    from accountbook.auth import service as auth
+    from smartbudget_server.auth import service as auth
 
     clock = [2000000000]
     monkeypatch.setattr(auth, "now_seconds", lambda: clock[0])
@@ -78,7 +78,7 @@ def test_concurrent_failures(client):
 
 def test_failure_window_and_unknown_user(client, monkeypatch):
     """5분 경계의 실패 제거와 미가입 아이디에도 같은 차단을 적용합니다."""
-    from accountbook.auth import service as auth
+    from smartbudget_server.auth import service as auth
 
     clock = [2000000000]
     monkeypatch.setattr(auth, "now_seconds", lambda: clock[0])
@@ -97,7 +97,7 @@ def test_failure_window_and_unknown_user(client, monkeypatch):
 
 def test_database_lock_returns_safe_503(client):
     """SQLite 잠금 대기 초과는 내부 DB 경로 없는 503으로 응답합니다."""
-    from accountbook.database import write_session
+    from smartbudget_server.database import write_session
 
     with write_session(client.app.state.engine):
         response = signup(client)

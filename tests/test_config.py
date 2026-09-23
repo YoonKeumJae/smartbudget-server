@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from accountbook.config import Settings
+from smartbudget_server.config import Settings
 
 
 def test_environment_overrides_dotenv(tmp_path, monkeypatch):

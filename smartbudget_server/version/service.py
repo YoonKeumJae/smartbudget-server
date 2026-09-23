@@ -4,7 +4,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from accountbook.version.schemas import BuildChannel, VersionData
+from smartbudget_server.version.schemas import BuildChannel, VersionData
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BUILD_INFO_PATH = PROJECT_ROOT / "build-info.json"

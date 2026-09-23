@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, FastAPI, Request
 
-from accountbook.http import INVALID_REQUEST, documented_response, respond
-from accountbook.version.schemas import (
+from smartbudget_server.http import INVALID_REQUEST, documented_response, respond
+from smartbudget_server.version.schemas import (
     VersionInvalidRequestEnvelope,
     VersionSuccessEnvelope,
 )

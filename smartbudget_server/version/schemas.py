@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from accountbook.http import (
+from smartbudget_server.http import (
     INVALID_REQUEST,
     SUCCESS_MESSAGE,
     Envelope,

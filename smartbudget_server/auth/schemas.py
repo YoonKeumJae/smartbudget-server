@@ -12,8 +12,8 @@ from pydantic import (
     model_validator,
 )
 
-from accountbook.auth import security, service
-from accountbook.http import (
+from smartbudget_server.auth import security, service
+from smartbudget_server.http import (
     INVALID_REQUEST,
     SUCCESS_MESSAGE,
     Envelope,
