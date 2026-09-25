@@ -73,6 +73,17 @@ docker compose pull
 docker compose up -d
 ```
 
+### Azure 개발 VM에서 develop 소스 직접 실행
+
+Azure 개발 VM은 GHCR 이미지를 pull하지 않고, checkout한 `develop` 소스로 앱 서비스를 빌드합니다. Compose의 앱 서비스만 실행해 Watchtower는 시작하지 않습니다.
+
+```sh
+git pull --ff-only origin develop
+sudo env BUILD_VERSION="$(git rev-parse HEAD)" BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" docker compose up -d --build --pull never --no-deps smartbudget-server
+```
+
+코드가 바뀔 때 위 명령을 다시 실행합니다. `--pull never`는 같은 GHCR `latest` 태그를 pull하지 않게 하고, `--no-deps`와 서비스 이름 지정은 Watchtower를 실행하지 않게 합니다. 이 경로는 수동 배포이며 GitHub Actions나 5분 자동 업데이트를 사용하지 않습니다. 전체 `docker compose up -d`는 Watchtower도 시작하므로 이 서버 업데이트에 사용하지 않습니다.
+
 유지보수 및 기타 목적으로 인해 서버를 잠시 다운시켜야 할 경우에는 다음 명령을 사용합니다.
 
 ```sh
