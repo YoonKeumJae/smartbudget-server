@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --frozen --no-sync python \"$(git rev-parse --show-toplevel)/scripts/harness.py\" start",
+            "command": "UV_CACHE_DIR=\"$(git rev-parse --show-toplevel)/.uv-cache\" uv run --frozen --no-sync python \"$(git rev-parse --show-toplevel)/scripts/harness.py\" start",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --frozen --no-sync python \"$(git rev-parse --show-toplevel)/scripts/harness.py\" stop",
+            "command": "UV_CACHE_DIR=\"$(git rev-parse --show-toplevel)/.uv-cache\" uv run --frozen --no-sync python \"$(git rev-parse --show-toplevel)/scripts/harness.py\" stop",
             "timeout": 300,
             "statusMessage": "Verifying project changes"
           }
